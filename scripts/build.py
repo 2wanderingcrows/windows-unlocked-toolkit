@@ -6,7 +6,8 @@ Usage:  python scripts/build.py
 Writes to dist/ (not committed; GitHub Actions publishes it to GitHub Pages):
   dist/install.ps1                 for:  irm <site>/install.ps1 | iex
   dist/WindowsUnlockedToolkit.cmd  the same installer as a double-clickable file
-  dist/index.html                  the website
+  dist/index.html                  the website (from site/index.template.html,
+                                   site/showcase.json and site/assets/)
 
 Each tool lives in tools/<id>/ with a tool.json (see CLAUDE.md for the fields).
 Every file in the tool's folder except tool.json is embedded in the installer.
@@ -17,6 +18,7 @@ import datetime
 import html
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -108,17 +110,56 @@ CMD_HEADER = (
 )
 
 
+def load_showcase():
+    path = ROOT / "site" / "showcase.json"
+    if not path.is_file():
+        return {}, []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data.get("tools", {}), data.get("upcoming", [])
+
+
+def tool_card(t, show, index):
+    e = html.escape
+    src = f"{REPO_URL}/tree/main/tools/{t['id']}"
+    if not show or not show.get("image"):
+        return (
+            f"    <article class=\"tool plain\" id=\"{e(t['id'])}\">\n"
+            f"      <h3>{e(t['name'])} <span class=\"ver\">v{e(t['version'])}</span></h3>\n"
+            f"      <p>{e(t['summary'])}</p>\n"
+            f"      <a class=\"more\" href=\"{src}\">Source and details &rarr;</a>\n"
+            "    </article>"
+        )
+    bullets = "\n".join(f"          <li>{e(b)}</li>" for b in show.get("bullets", []))
+    badge = "<span class=\"mock\">Illustration</span>" if show.get("mockup") else ""
+    flip = " flip" if index % 2 else ""
+    accent = e(show.get("accent", ""))
+    style = f" style=\"--tool:{accent}\"" if accent else ""
+    admin = "<span class=\"pill\">Needs admin</span>" if t.get("admin") else "<span class=\"pill\">No admin needed</span>"
+    return (
+        f"    <article class=\"tool feature{flip}\" id=\"{e(t['id'])}\"{style}>\n"
+        "      <div class=\"copy\">\n"
+        f"        <p class=\"eyebrow\">{e(t['name'])} <span class=\"ver\">v{e(t['version'])}</span></p>\n"
+        f"        <h3>{e(show.get('tagline', t['name']))}</h3>\n"
+        f"        <p class=\"problem\">{e(show.get('problem', t['summary']))}</p>\n"
+        f"        <ul class=\"checks\">\n{bullets}\n        </ul>\n"
+        f"        <div class=\"meta\">{admin}<a class=\"more\" href=\"{src}\">Source and details &rarr;</a></div>\n"
+        "      </div>\n"
+        f"      <figure class=\"shot\">{badge}<img src=\"{e(show['image'])}\" alt=\"{e(show.get('alt', ''))}\" loading=\"lazy\" width=\"1200\" height=\"640\"></figure>\n"
+        "    </article>"
+    )
+
+
 def build_site(tools, build):
     template = (ROOT / "site" / "index.template.html").read_text(encoding="utf-8")
-    cards = "\n".join(
-        "      <li class=\"tool\">\n"
-        f"        <h3>{html.escape(t['name'])} <span class=\"ver\">v{html.escape(t['version'])}</span></h3>\n"
-        f"        <p>{html.escape(t['summary'])}</p>\n"
-        f"        <a href=\"{REPO_URL}/tree/main/tools/{t['id']}\">Source and details</a>\n"
-        "      </li>"
-        for t in tools
+    showcase, upcoming = load_showcase()
+    cards = "\n".join(tool_card(t, showcase.get(t["id"]), i) for i, t in enumerate(tools))
+    soon = "\n".join(
+        f"      <li><b>{html.escape(u['name'])}</b><span>{html.escape(u.get('note', ''))}</span></li>"
+        for u in upcoming
     )
     return (template.replace("{{TOOLS}}", cards)
+                    .replace("{{UPCOMING}}", soon)
+                    .replace("{{TOOL_COUNT}}", str(len(tools)))
                     .replace("{{BUILD}}", html.escape(build))
                     .replace("{{REPO_URL}}", REPO_URL)
                     .replace("{{SITE_URL}}", SITE_URL))
@@ -139,6 +180,9 @@ def main():
     (DIST / "install.ps1").write_bytes(script.encode("ascii"))
     (DIST / "WindowsUnlockedToolkit.cmd").write_bytes((CMD_HEADER + script).encode("ascii"))
     (DIST / "index.html").write_text(build_site(tools, build), encoding="utf-8")
+    assets = ROOT / "site" / "assets"
+    if assets.is_dir():
+        shutil.copytree(assets, DIST / "assets", dirs_exist_ok=True)
     print(f"Built {len(tools)} tool(s): {', '.join(t['name'] for t in tools)}")
     print(f"Build {build} -> {DIST}")
 

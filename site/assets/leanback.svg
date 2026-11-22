@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="Segoe UI Variable Display, Segoe UI, system-ui, -apple-system, Helvetica, Arial, sans-serif">
+  <!-- MOCKUP: illustration of Leanback Mode. Swap for a real photo/screenshot (same 1200x640 size) when one exists. -->
+  <defs>
+    <linearGradient id="room" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1440"/>
+      <stop offset="1" stop-color="#0c0a22"/>
+    </linearGradient>
+    <radialGradient id="tvglow" cx="0.5" cy="0.45" r="0.6">
+      <stop offset="0" stop-color="#5b7cff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#5b7cff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tvscreen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="0.6" stop-color="#4338ca"/>
+      <stop offset="1" stop-color="#7e22ce"/>
+    </linearGradient>
+    <linearGradient id="pad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#cbd5e1"/>
+    </linearGradient>
+    <linearGradient id="t1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5f6d"/><stop offset="1" stop-color="#ffc371"/></linearGradient>
+    <linearGradient id="t2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#36d1dc"/><stop offset="1" stop-color="#5b86e5"/></linearGradient>
+    <linearGradient id="t3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a18cd1"/><stop offset="1" stop-color="#fbc2eb"/></linearGradient>
+    <linearGradient id="t4" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#43e97b"/><stop offset="1" stop-color="#38f9d7"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000" flood-opacity="0.5"/></filter>
+    <clipPath id="c"><rect width="1200" height="640" rx="28"/></clipPath>
+    <clipPath id="scr"><rect x="0" y="0" width="560" height="315" rx="6"/></clipPath>
+  </defs>
+  <g clip-path="url(#c)">
+    <rect width="1200" height="640" fill="url(#room)"/>
+    <ellipse cx="560" cy="260" rx="700" ry="420" fill="url(#tvglow)"/>
+    <!-- floor -->
+    <rect y="470" width="1200" height="170" fill="#0a0820"/>
+    <!-- media console -->
+    <rect x="250" y="430" width="620" height="44" rx="10" fill="#2a2350"/>
+    <rect x="270" y="474" width="16" height="30" rx="4" fill="#2a2350"/>
+    <rect x="834" y="474" width="16" height="30" rx="4" fill="#2a2350"/>
+
+    <!-- TV -->
+    <g transform="translate(280 92)" filter="url(#sh)">
+      <rect x="-12" y="-12" width="584" height="339" rx="14" fill="#0b0b12"/>
+      <g clip-path="url(#scr)">
+        <rect width="560" height="315" fill="url(#tvscreen)"/>
+        <!-- big TV-mode UI -->
+        <text x="34" y="58" fill="#fff" font-size="30" font-weight="700">Good evening</text>
+        <text x="34" y="86" fill="#c7d2fe" font-size="17">Pick something to watch</text>
+        <rect x="34"  y="112" width="150" height="104" rx="16" fill="url(#t1)"/>
+        <rect x="200" y="112" width="150" height="104" rx="16" fill="url(#t2)" stroke="#ffffff" stroke-width="5"/>
+        <rect x="366" y="112" width="150" height="104" rx="16" fill="url(#t3)"/>
+        <path d="M95 148 v32 l26 -16 z" fill="#fff" fill-opacity="0.9"/>
+        <circle cx="275" cy="164" r="20" fill="#fff" fill-opacity="0.9"/>
+        <path d="M268 152 v24 l20 -12 z" fill="#5b86e5"/>
+        <rect x="415" y="150" width="52" height="30" rx="6" fill="#fff" fill-opacity="0.85"/>
+        <text x="109" y="246" text-anchor="middle" fill="#fff" font-size="17" font-weight="600">Videos</text>
+        <text x="275" y="246" text-anchor="middle" fill="#fff" font-size="17" font-weight="600">Stream</text>
+        <text x="441" y="246" text-anchor="middle" fill="#fff" font-size="17" font-weight="600">Browse</text>
+        <!-- giant pointer -->
+        <path d="M312 196 l0 58 l14 -13 l11 25 l11 -5 l-11 -24 l19 -1 z" fill="#fff" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/>
+        <!-- mode pill -->
+        <g transform="translate(384 22)">
+          <rect width="152" height="32" rx="16" fill="#000" fill-opacity="0.35"/>
+          <circle cx="18" cy="16" r="5" fill="#4ade80"/>
+          <text x="32" y="21.5" fill="#fff" font-size="14" font-weight="600">TV mode · 150%</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- controller -->
+    <g transform="translate(470 488)" filter="url(#sh)">
+      <path d="M40 10 C 80 -6, 180 -6, 220 10 C 252 22, 270 80, 262 106 C 254 128, 222 128, 204 104 L 186 82 C 160 74, 100 74, 74 82 L 56 104 C 38 128, 6 128, -2 106 C -10 80, 8 22, 40 10 Z" fill="url(#pad)"/>
+      <circle cx="68" cy="44" r="18" fill="#334155"/>
+      <circle cx="68" cy="44" r="11" fill="#475569"/>
+      <circle cx="166" cy="76" r="14" fill="#334155"/>
+      <g transform="translate(96 62)" fill="#64748b">
+        <rect x="-6" y="-16" width="12" height="32" rx="3"/>
+        <rect x="-16" y="-6" width="32" height="12" rx="3"/>
+      </g>
+      <circle cx="200" cy="26" r="9" fill="#facc15"/>
+      <circle cx="216" cy="42" r="9" fill="#ef4444"/>
+      <circle cx="184" cy="42" r="9" fill="#3b82f6"/>
+      <circle cx="200" cy="58" r="9" fill="#22c55e"/>
+      <circle cx="130" cy="30" r="7" fill="#7c3aed"/>
+    </g>
+    <!-- wireless waves -->
+    <g fill="none" stroke="#a5b4fc" stroke-width="4" stroke-linecap="round" opacity="0.85">
+      <path d="M582 462 a22 22 0 0 1 36 0"/>
+      <path d="M570 450 a40 40 0 0 1 60 0" opacity="0.7"/>
+      <path d="M558 438 a58 58 0 0 1 84 0" opacity="0.45"/>
+    </g>
+
+    <!-- callouts -->
+    <g transform="translate(884 120)">
+      <rect width="284" height="96" rx="18" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.18"/>
+      <text x="22" y="40" fill="#ffffff" font-size="20" font-weight="700">Controller on</text>
+      <text x="22" y="68" fill="#c7d2fe" font-size="16">Big text, big pointer, couch-ready</text>
+    </g>
+    <g transform="translate(884 236)">
+      <rect width="284" height="96" rx="18" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.18"/>
+      <text x="22" y="40" fill="#ffffff" font-size="20" font-weight="700">Controller off</text>
+      <text x="22" y="68" fill="#c7d2fe" font-size="16">Back to your normal desktop</text>
+    </g>
+    <g transform="translate(884 352)">
+      <rect width="284" height="96" rx="18" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.18"/>
+      <text x="22" y="40" fill="#ffffff" font-size="20" font-weight="700">Any controller</text>
+      <text x="22" y="68" fill="#c7d2fe" font-size="16">Xbox, PlayStation, Switch, 8BitDo</text>
+    </g>
+    <text x="48" y="70" fill="#ffffff" font-size="15" font-weight="700" letter-spacing="2" opacity="0.6">LEANBACK MODE</text>
+  </g>
+</svg>
