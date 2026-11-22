@@ -27,7 +27,7 @@
 
 <!-- MOCKUP: concept art of the coming tray app. Replace site/assets/hero.svg with a real screenshot (1200x680) when it ships. -->
 <p align="center">
-  <img src="site/assets/hero.svg" alt="A Windows desktop with the toolkit's tray panel open: a TV mode card, tiles for Leanback Mode, Controller mouse, Media Tab Jump and Hover glow, and a Pause everything button">
+  <img src="site/assets/hero.svg" alt="A Windows desktop with the toolkit's tray panel open: a Leanback mode card, tiles for Leanback Mode, Controller mouse, Media Tab Jump and Hover glow, and a Pause everything button">
 </p>
 <p align="center"><sub>Concept art of the toolkit's tray panel, coming soon. Today each tool runs on its own.</sub></p>
 
@@ -56,7 +56,8 @@ Using a PC on the TV is clumsy: tiny text, a pointer you can't find, and a
 keyboard you don't want on your lap. **Leanback Mode** notices when you pick
 up a controller and rearranges Windows for the couch.
 
-- ✅ Switches to TV mode the moment your controller turns on, and back when it turns off
+- ✅ Switches to Leanback mode the moment your controller turns on, and back to desktop mode when you switch it off
+- ✅ Controller dozed off mid-movie? You stay in Leanback mode until you turn it off yourself
 - ✅ Bigger text and a pointer you can actually see from across the room
 - ✅ Sticks move and scroll, buttons click, go back and open Start
 - ✅ Steps aside on its own when you launch a game

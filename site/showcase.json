@@ -5,7 +5,8 @@
       "tagline": "Your PC, now a couch console.",
       "problem": "Using a PC on the TV is clumsy: tiny text, a pointer you can't find, and a keyboard you don't want on your lap. Leanback Mode notices when you pick up a controller and rearranges Windows for the couch.",
       "bullets": [
-        "Switches to TV mode the moment your controller turns on, and back when it turns off",
+        "Switches to Leanback mode the moment your controller turns on, and back to desktop mode when you switch it off",
+        "Controller dozed off mid-movie? You stay in Leanback mode until you turn it off yourself",
         "Bigger text and a pointer you can actually see from across the room",
         "Sticks move and scroll, buttons click, go back and open Start",
         "Steps aside on its own when you launch a game",

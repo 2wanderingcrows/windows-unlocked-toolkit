@@ -41,7 +41,7 @@
       <rect x="-12" y="-12" width="584" height="339" rx="14" fill="#0b0b12"/>
       <g clip-path="url(#scr)">
         <rect width="560" height="315" fill="url(#tvscreen)"/>
-        <!-- big TV-mode UI -->
+        <!-- big Leanback-mode UI -->
         <text x="34" y="58" fill="#fff" font-size="30" font-weight="700">Good evening</text>
         <text x="34" y="86" fill="#c7d2fe" font-size="17">Pick something to watch</text>
         <rect x="34"  y="112" width="150" height="104" rx="16" fill="url(#t1)"/>
@@ -57,10 +57,10 @@
         <!-- giant pointer -->
         <path d="M312 196 l0 58 l14 -13 l11 25 l11 -5 l-11 -24 l19 -1 z" fill="#fff" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/>
         <!-- mode pill -->
-        <g transform="translate(384 22)">
-          <rect width="152" height="32" rx="16" fill="#000" fill-opacity="0.35"/>
+        <g transform="translate(340 22)">
+          <rect width="196" height="32" rx="16" fill="#000" fill-opacity="0.35"/>
           <circle cx="18" cy="16" r="5" fill="#4ade80"/>
-          <text x="32" y="21.5" fill="#fff" font-size="14" font-weight="600">TV mode · 150%</text>
+          <text x="32" y="21.5" fill="#fff" font-size="14" font-weight="600">Leanback mode · 150%</text>
         </g>
       </g>
     </g>
@@ -96,8 +96,8 @@
     </g>
     <g transform="translate(884 236)">
       <rect width="284" height="96" rx="18" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.18"/>
-      <text x="22" y="40" fill="#ffffff" font-size="20" font-weight="700">Controller off</text>
-      <text x="22" y="68" fill="#c7d2fe" font-size="16">Back to your normal desktop</text>
+      <text x="22" y="40" fill="#ffffff" font-size="20" font-weight="700">Switch it off</text>
+      <text x="22" y="68" fill="#c7d2fe" font-size="16">Back to desktop mode</text>
     </g>
     <g transform="translate(884 352)">
       <rect width="284" height="96" rx="18" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.18"/>
