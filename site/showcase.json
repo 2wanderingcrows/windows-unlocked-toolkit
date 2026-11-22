@@ -33,9 +33,21 @@
     }
   },
   "upcoming": [
-    {"name": "Toolkit tray app", "note": "One tray icon with a settings panel for every tool"},
-    {"name": "Window Tab Organizer", "note": "On the workbench"},
-    {"name": "Claude AutoZoom", "note": "On the workbench"},
-    {"name": "Startup Minimizer", "note": "On the workbench"}
+    {
+      "name": "Toolkit tray app",
+      "note": "One tray icon with a settings panel for every tool"
+    },
+    {
+      "name": "Window Tab Organizer",
+      "note": "For anyone with way too many windows open"
+    },
+    {
+      "name": "Claude AutoZoom",
+      "note": "Claude, always at a comfortable size"
+    },
+    {
+      "name": "Startup Minimizer",
+      "note": "Sign in to a calm desktop, not a pile of windows"
+    }
   ]
 }

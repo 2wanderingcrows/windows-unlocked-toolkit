@@ -88,9 +88,9 @@ flyout into a shortcut straight to the right tab.
 These are being polished and will join the same installer when they're ready:
 
 - **Toolkit tray app**: one tray icon with a settings panel for every tool (glow colors, controller speed, button mapping and more)
-- **Window Tab Organizer**
-- **Claude AutoZoom**
-- **Startup Minimizer**
+- **Window Tab Organizer**: for anyone with way too many windows open
+- **Claude AutoZoom**: Claude, always at a comfortable size
+- **Startup Minimizer**: sign in to a calm desktop, not a pile of windows
 
 Have an idea for a tool? [Open an issue](https://github.com/maxsilbert805/windows-unlocked-toolkit/issues) and say what bugs you.
 
