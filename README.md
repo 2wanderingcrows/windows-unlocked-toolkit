@@ -22,17 +22,19 @@ irm https://maxsilbert805.github.io/windows-unlocked-toolkit/install.ps1 | iex
 download it, and run its `Install.cmd`.
 
 Windows may say the file is from an unknown publisher. Choose **More info**,
-then **Run anyway**. The installer holds each tool's full source and doesn't
-download anything else.
+then **Run anyway**. The installer holds each tool's full source. The only
+thing it downloads is AntiMicroX (with `winget`), and only if you pick Leanback
+Mode and don't have it yet.
 
 ## Tools
 
 | Tool | What it does |
 | --- | --- |
+| [Leanback Mode](tools/leanback) | Turn on a game controller and your PC switches to a couch-friendly TV mode: bigger text and pointer, and the controller works as a mouse. Works with Xbox, PlayStation, Switch Pro, 8BitDo and generic Bluetooth or 2.4 GHz pads. |
 | [Media Tab Jump](tools/mediatabjump) | Click the now-playing card in the Windows volume flyout to jump straight to the browser tab that's playing it. |
 
-More are on the way, starting with **Leanback Mode for Windows** (turn on a
-controller and your PC switches to a couch-friendly TV mode).
+More are on the way, along with a toolkit tray app for changing every tool's
+settings in one place.
 
 ## How this repo works
 

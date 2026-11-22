@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Controller-as-mouse: Gopher360's default layout, with smoother/tunable sticks.
+     Left stick dead zone 600 (controller already zeroes drift at rest; Gopher: 4000),
+     power curve with sensitivity 1.2 (quicker take-off on small tilts, same top speed),
+     speed 45, 200 Hz updates. Raise sensitivity (e.g. 1.35) for an even quicker take-off;
+     1.0 = plain linear. -->
+<gamecontroller configversion="19" appversion="3.6.2">
+    <profilename>Controller Mouse (Gopher layout)</profilename>
+    <sets>
+        <set index="1">
+            <!-- Left stick: mouse cursor -->
+            <stick index="1">
+                <deadZone>600</deadZone>
+                <diagonalRange>65</diagonalRange>
+                <stickbutton index="1">
+                    <mousespeedx>45</mousespeedx>
+                    <mousespeedy>45</mousespeedy>
+                    <mouseacceleration>power</mouseacceleration>
+                    <mousesensitivity>1.2</mousesensitivity>
+                    <slots><slot><code>1</code><mode>mousemovement</mode></slot></slots>
+                </stickbutton>
+                <stickbutton index="3">
+                    <mousespeedx>45</mousespeedx>
+                    <mousespeedy>45</mousespeedy>
+                    <mouseacceleration>power</mouseacceleration>
+                    <mousesensitivity>1.2</mousesensitivity>
+                    <slots><slot><code>4</code><mode>mousemovement</mode></slot></slots>
+                </stickbutton>
+                <stickbutton index="5">
+                    <mousespeedx>45</mousespeedx>
+                    <mousespeedy>45</mousespeedy>
+                    <mouseacceleration>power</mouseacceleration>
+                    <mousesensitivity>1.2</mousesensitivity>
+                    <slots><slot><code>2</code><mode>mousemovement</mode></slot></slots>
+                </stickbutton>
+                <stickbutton index="7">
+                    <mousespeedx>45</mousespeedx>
+                    <mousespeedy>45</mousespeedy>
+                    <mouseacceleration>power</mouseacceleration>
+                    <mousesensitivity>1.2</mousesensitivity>
+                    <slots><slot><code>3</code><mode>mousemovement</mode></slot></slots>
+                </stickbutton>
+            </stick>
+            <!-- Right stick: up/down scrolls, left/right switches tabs (Ctrl+Shift+Tab / Ctrl+Tab).
+                 four-way = no diagonals, so scrolling at an angle never also switches tabs. -->
+            <stick index="2">
+                <deadZone>5000</deadZone>
+                <mode>four-way</mode>
+                <stickbutton index="3">
+                    <slots>
+                        <slot><code>0x1000021</code><mode>keyboard</mode></slot>
+                        <slot><code>0x1000001</code><mode>keyboard</mode></slot>
+                    </slots>
+                </stickbutton>
+                <stickbutton index="7">
+                    <slots>
+                        <slot><code>0x1000021</code><mode>keyboard</mode></slot>
+                        <slot><code>0x1000020</code><mode>keyboard</mode></slot>
+                        <slot><code>0x1000001</code><mode>keyboard</mode></slot>
+                    </slots>
+                </stickbutton>
+                <stickbutton index="1">
+                    <wheelspeedy>15</wheelspeedy>
+                    <slots><slot><code>4</code><mode>mousebutton</mode></slot></slots>
+                </stickbutton>
+                <stickbutton index="5">
+                    <wheelspeedy>15</wheelspeedy>
+                    <slots><slot><code>5</code><mode>mousebutton</mode></slot></slots>
+                </stickbutton>
+            </stick>
+            <!-- D-pad: arrow keys -->
+            <dpad index="1">
+                <dpadbutton index="1"><slots><slot><code>0x1000013</code><mode>keyboard</mode></slot></slots></dpadbutton>
+                <dpadbutton index="2"><slots><slot><code>0x1000014</code><mode>keyboard</mode></slot></slots></dpadbutton>
+                <dpadbutton index="4"><slots><slot><code>0x1000015</code><mode>keyboard</mode></slot></slots></dpadbutton>
+                <dpadbutton index="8"><slots><slot><code>0x1000012</code><mode>keyboard</mode></slot></slots></dpadbutton>
+            </dpad>
+            <!-- LT: Space -->
+            <trigger index="5">
+                <triggerbutton index="2"><slots><slot><code>0x20</code><mode>keyboard</mode></slot></slots></triggerbutton>
+            </trigger>
+            <!-- RT: Backspace -->
+            <trigger index="6">
+                <triggerbutton index="2"><slots><slot><code>0x1000003</code><mode>keyboard</mode></slot></slots></triggerbutton>
+            </trigger>
+            <!-- A: left click -->
+            <button index="1"><slots><slot><code>1</code><mode>mousebutton</mode></slot></slots></button>
+            <!-- B: Enter -->
+            <button index="2"><slots><slot><code>0x1000004</code><mode>keyboard</mode></slot></slots></button>
+            <!-- X: right click -->
+            <button index="3"><slots><slot><code>3</code><mode>mousebutton</mode></slot></slots></button>
+            <!-- Y: hold for fast cursor. 260 = 2.6x requested speed, which with Windows'
+                 "Enhance pointer precision" comes out to roughly 3.5x actual speed at full tilt. -->
+            <button index="4"><slots><slot><code>260</code><mode>mousespeedmod</mode></slot></slots></button>
+            <!-- Back/Select: browser refresh -->
+            <button index="5"><slots><slot><code>0x1000064</code><mode>keyboard</mode></slot></slots></button>
+            <!-- Start: Windows key -->
+            <button index="7"><slots><slot><code>0x1000022</code><mode>keyboard</mode></slot></slots></button>
+            <!-- Left stick click: middle click -->
+            <button index="8"><slots><slot><code>2</code><mode>mousebutton</mode></slot></slots></button>
+            <!-- Right stick click: F11 (full screen) -->
+            <button index="9"><slots><slot><code>0x100003a</code><mode>keyboard</mode></slot></slots></button>
+            <!-- LB: browser back -->
+            <button index="10"><slots><slot><code>0x1000061</code><mode>keyboard</mode></slot></slots></button>
+            <!-- RB: browser forward -->
+            <button index="11"><slots><slot><code>0x1000062</code><mode>keyboard</mode></slot></slots></button>
+        </set>
+    </sets>
+</gamecontroller>

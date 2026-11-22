@@ -1,0 +1,10 @@
+{
+  "id": "leanback",
+  "name": "Leanback Mode",
+  "version": "1.0",
+  "summary": "Turn on a game controller and your PC switches to a couch-friendly TV mode (bigger text and pointer, controller works as a mouse). Turn it off to go back.",
+  "install": "Install.ps1",
+  "uninstall": "Uninstall.ps1",
+  "admin": false,
+  "order": 10
+}

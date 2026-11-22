@@ -1,0 +1,1715 @@
+// Leanback Mode for Windows  (part of Windows Unlocked Toolkit)
+// Watches for a game controller: Xbox-style (XInput) pads, plus PlayStation, Switch Pro, 8BitDo and
+// generic Bluetooth / 2.4 GHz pads that Windows lists as "HID-compliant game controller".
+// Controller on  -> "TV mode": bigger Windows scaling on the primary display + bigger mouse pointer.
+// Controller off -> back to your normal scaling and pointer size.
+//
+// The switch is hidden behind a frosted overlay:
+//   1. blur in (vsync-paced fade)            2. switch scaling + pointer behind it
+//   3. wait until the screen stops changing  4. dissolve to a blurred snapshot of the NEW layout
+//   5. fade that away into the sharp new layout (a soft "focus pull", no layout jumping)
+// The overlay hides the pointer, stays above the taskbar, and is excluded from its own screen captures.
+//
+// Settings: %LOCALAPPDATA%\LeanbackMode\settings.ini (edit from the tray menu; changes apply live).
+//
+// Build (no SDK needed, uses the C# compiler that ships with Windows):
+//   C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /target:winexe /optimize+
+//     /r:System.Windows.Forms.dll /r:System.Drawing.dll /out:..\LeanbackMode.exe LeanbackMode.cs
+// Management options (used by uninstall.ps1):
+//   --exit     ask the running copy to close (it switches back to desktop mode first), wait for it, then exit
+//   --reset    set display scaling and pointer size back to NormalScale / NormalPointerSize right away
+// Test options:
+//   --render-backdrop <file.png> [tv|desktop]   save what the overlay looks like, then exit
+//   --preview [tv|desktop]                      play the transition without changing any settings, then exit
+//   --capture-test <file.txt>                   check that screen captures skip the overlay, then exit
+
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Drawing.Text;
+using System.Globalization;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+using System.Windows.Forms;
+using Microsoft.Win32;
+
+namespace LeanbackMode
+{
+    static class Program
+    {
+        [STAThread]
+        static void Main(string[] args)
+        {
+            try { Native.SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch { }
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+
+            if (args.Length >= 1 && args[0] == "--exit")
+            {
+                EventWaitHandle ev;
+                if (EventWaitHandle.TryOpenExisting(TrayApp.ExitEventName, out ev))
+                {
+                    using (ev) ev.Set();
+                    int me = Process.GetCurrentProcess().Id;
+                    var sw = Stopwatch.StartNew();
+                    while (sw.Elapsed.TotalSeconds < 20)
+                    {
+                        bool running = false;
+                        foreach (var p in Process.GetProcessesByName("LeanbackMode")) { if (p.Id != me) running = true; p.Dispose(); }
+                        if (!running) break;
+                        Thread.Sleep(200);
+                    }
+                }
+                return;
+            }
+            if (args.Length >= 1 && args[0] == "--reset")
+            {
+                var s = File.Exists(Settings.FilePath) ? Settings.Load() : new Settings();
+                DisplayScale.Set(s.NormalScale);
+                PointerSize.Set(s.NormalPointerSize);
+                return;
+            }
+            if (args.Length >= 2 && args[0] == "--render-backdrop")
+            {
+                bool tv = !(args.Length >= 3 && args[2] == "desktop");
+                Rectangle b = Screen.PrimaryScreen.Bounds, ind;
+                using (var small = Visuals.CaptureSmall(b))
+                using (var bg = Visuals.MakeBackdrop(small, b.Size, tv, "preview", out ind))
+                {
+                    using (var g = Graphics.FromImage(bg)) Visuals.DrawIndicator(g, ind, 0.35, false);
+                    bg.Save(args[1], ImageFormat.Png);
+                }
+                return;
+            }
+            if (args.Length >= 2 && args[0] == "--capture-test")
+            {
+                Rectangle b = Screen.PrimaryScreen.Bounds;
+                using (var before = Visuals.CaptureSmall(b))
+                using (var red = new Bitmap(b.Width, b.Height, PixelFormat.Format32bppPArgb))
+                {
+                    using (var g = Graphics.FromImage(red)) g.Clear(Color.Red);
+                    var v = new Veil(red, b, Rectangle.Empty);
+                    v.Show(); v.Refresh(); v.SetAlpha(110);
+                    for (int i = 0; i < 3; i++) Native.DwmFlush();
+                    Thread.Sleep(30);
+                    double d;
+                    using (var after = Visuals.CaptureSmall(b)) d = Visuals.Diff(before, after);
+                    v.Close();
+                    File.WriteAllText(args[1], "diff=" + d.ToString("0.00", CultureInfo.InvariantCulture));
+                }
+                return;
+            }
+            if (args.Length >= 3 && args[0] == "--check-game")
+            {
+                // --check-game <out.txt> <exe path> [<exe path> ...]
+                var det = new GameDetector();
+                det.Configure(Settings.Load());
+                var sb = new StringBuilder();
+                for (int i = 2; i < args.Length; i++)
+                    sb.AppendLine((det.IsGamePath(args[i]) ? "GAME      " : "not game  ") + args[i]);
+                File.WriteAllText(args[1], sb.ToString());
+                return;
+            }
+            if (args.Length >= 1 && args[0] == "--preview")
+            {
+                bool tv = !(args.Length >= 2 && args[1] == "desktop");
+                var t = new Transition(tv, "preview", delegate { Thread.Sleep(1200); return null; }, Settings.Load());
+                t.Finished += delegate { Application.ExitThread(); };
+                t.Start();
+                Application.Run();
+                return;
+            }
+
+            bool created;
+            using (var mutex = new Mutex(true, "Local\\LeanbackMode_SingleInstance", out created))
+            {
+                if (!created) return; // already running
+                Application.Run(new TrayApp());
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- native helpers
+
+    static class Native
+    {
+        [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+        [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr hwnd);
+        [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
+        [DllImport("gdi32.dll")] public static extern bool StretchBlt(IntPtr dst, int xd, int yd, int wd, int hd, IntPtr src, int xs, int ys, int ws, int hs, uint rop);
+        [DllImport("gdi32.dll")] public static extern int SetStretchBltMode(IntPtr hdc, int mode);
+        [DllImport("gdi32.dll")] public static extern bool SetBrushOrgEx(IntPtr hdc, int x, int y, IntPtr prev);
+        [DllImport("user32.dll")] public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint key, byte alpha, uint flags);
+        [DllImport("user32.dll")] public static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint affinity);
+        [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+        [DllImport("user32.dll")] public static extern IntPtr SetCursor(IntPtr cursor);
+        [DllImport("user32.dll")] public static extern bool SendNotifyMessage(IntPtr hwnd, uint msg, UIntPtr w, IntPtr l);
+        [DllImport("dwmapi.dll")] public static extern int DwmFlush();
+        [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+        [DllImport("winmm.dll")] public static extern uint timeBeginPeriod(uint p);
+        [DllImport("winmm.dll")] public static extern uint timeEndPeriod(uint p);
+        [DllImport("user32.dll")] static extern uint SendInput(uint n, INPUT[] inputs, int size);
+
+        [StructLayout(LayoutKind.Sequential)] struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr extra; }
+        [StructLayout(LayoutKind.Sequential)] struct INPUT { public uint type; public MOUSEINPUT mi; }
+
+        public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        public const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10, SWP_NOOWNERZORDER = 0x200;
+
+        // A zero-distance mouse move: makes Windows re-evaluate which cursor to show, without moving it.
+        public static void NudgeCursor()
+        {
+            try
+            {
+                var inp = new INPUT[1];
+                inp[0].type = 0; inp[0].mi.dwFlags = 0x0001; // MOUSEEVENTF_MOVE, dx = dy = 0
+                SendInput(1, inp, Marshal.SizeOf(typeof(INPUT)));
+            }
+            catch { }
+        }
+
+        // Wait for the next frame the compositor presents (falls back to a short sleep).
+        public static void WaitFrame()
+        {
+            var sw = Stopwatch.StartNew();
+            try { DwmFlush(); } catch { }
+            if (sw.Elapsed.TotalMilliseconds < 2) Thread.Sleep(4);
+        }
+    }
+
+    // ---------------------------------------------------------------- settings
+
+    class Settings
+    {
+        public int TvScale = 150;
+        public int NormalScale = 100;
+        public int TvPointerSize = 48;
+        public int NormalPointerSize = 32;
+        public double SwitchOnDelaySeconds = 0.5;
+        public double SwitchOffDelaySeconds = 1;
+        public bool SmoothTransition = true;
+        public int FadeInMs = 250;
+        public int SettleMinMs = 250;
+        public int SettleMaxMs = 3000;
+        public int CrossfadeMs = 220;
+        public int FadeOutMs = 420;
+        public string Mode = "Auto"; // Auto | TV | Normal
+        public string Hotkey = "Ctrl+Alt+T";
+        public bool PauseMouseInGames = true;
+        public double ResumeAfterGameSeconds = 2;
+        public string GameFolders = @"C:\Games";
+        public string NotGames = "";
+        public string AntiMicroXPath = @"C:\Program Files\AntiMicroX\bin\antimicrox.exe";
+        public string DetectControllers = "All"; // All | XInput
+        public string IgnoreControllers = "";    // VID:PID;VID:PID  (hex, as shown in the log)
+        public string AntiMicroXProfile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"antimicrox\profiles\controller-mouse.amgp");
+
+        public static string Dir
+        {
+            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LeanbackMode"); }
+        }
+        public static string FilePath { get { return Path.Combine(Dir, "settings.ini"); } }
+
+        public static Settings Load()
+        {
+            var s = new Settings();
+            if (!File.Exists(FilePath))
+            {
+                // First run: remember what "normal" looks like on this PC.
+                int cur = DisplayScale.GetCurrent();
+                if (cur > 0) s.NormalScale = cur;
+                if (s.TvScale <= s.NormalScale) s.TvScale = s.NormalScale + 50; // TV mode should always be bigger
+                s.NormalPointerSize = PointerSize.Get();
+                s.Save();
+                s.ApplyToController();
+                return s;
+            }
+            var seen = new HashSet<string>();
+            foreach (var raw in File.ReadAllLines(FilePath))
+            {
+                var line = raw.Trim();
+                if (line.Length == 0 || line.StartsWith("#") || line.StartsWith(";")) continue;
+                int eq = line.IndexOf('=');
+                if (eq < 0) continue;
+                string k = line.Substring(0, eq).Trim().ToLowerInvariant(), v = line.Substring(eq + 1).Trim();
+                seen.Add(k);
+                int i; double d;
+                switch (k)
+                {
+                    case "tvscale": if (int.TryParse(v, out i)) s.TvScale = i; break;
+                    case "normalscale": if (int.TryParse(v, out i)) s.NormalScale = i; break;
+                    case "tvpointersize": if (int.TryParse(v, out i)) s.TvPointerSize = i; break;
+                    case "normalpointersize": if (int.TryParse(v, out i)) s.NormalPointerSize = i; break;
+                    case "switchondelayseconds": if (double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) s.SwitchOnDelaySeconds = d; break;
+                    case "switchoffdelayseconds": if (double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) s.SwitchOffDelaySeconds = d; break;
+                    case "smoothtransition": s.SmoothTransition = !(v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)); break;
+                    case "fadeinms": if (int.TryParse(v, out i)) s.FadeInMs = Math.Max(0, i); break;
+                    case "settleminms": if (int.TryParse(v, out i)) s.SettleMinMs = Math.Max(0, i); break;
+                    case "settlemaxms": if (int.TryParse(v, out i)) s.SettleMaxMs = Math.Max(0, i); break;
+                    case "crossfadems": if (int.TryParse(v, out i)) s.CrossfadeMs = Math.Max(0, i); break;
+                    case "fadeoutms": if (int.TryParse(v, out i)) s.FadeOutMs = Math.Max(0, i); break;
+                    case "mode": s.Mode = v; break;
+                    case "hotkey": s.Hotkey = v; break;
+                    case "pausemouseingames": s.PauseMouseInGames = !(v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)); break;
+                    case "resumeaftergameseconds": if (double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) s.ResumeAfterGameSeconds = Math.Max(0, d); break;
+                    case "gamefolders": s.GameFolders = v; break;
+                    case "notgames": s.NotGames = v; break;
+                    case "detectcontrollers": s.DetectControllers = v.Equals("xinput", StringComparison.OrdinalIgnoreCase) ? "XInput" : "All"; break;
+                    case "ignorecontrollers": s.IgnoreControllers = v; break;
+                    case "antimicroxpath": if (v.Length > 0) s.AntiMicroXPath = v; break;
+                    case "antimicroxprofile": if (v.Length > 0) s.AntiMicroXProfile = v; break;
+                }
+            }
+            if (!seen.Contains("crossfadems") || !seen.Contains("pausemouseingames") || !seen.Contains("hotkey") || !seen.Contains("detectcontrollers")) { try { s.Save(); } catch { } } // add new options to older files
+            s.ApplyToController();
+            return s;
+        }
+
+        public void ApplyToController()
+        {
+            Controller.AllTypes = DetectControllers != "XInput";
+            var ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var part in IgnoreControllers.Split(new[] { ';', ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                ignored.Add(part.Trim());
+            Controller.Ignored = ignored;
+        }
+
+        public void Save()
+        {
+            Directory.CreateDirectory(Dir);
+            var sb = new StringBuilder();
+            sb.AppendLine("# Leanback Mode settings. Save this file and changes apply right away.");
+            sb.AppendLine("#");
+            sb.AppendLine("# Display scaling in percent. Windows allows 100, 125, 150, 175, 200, 225 on your screen.");
+            sb.AppendLine("TvScale=" + TvScale);
+            sb.AppendLine("NormalScale=" + NormalScale);
+            sb.AppendLine("#");
+            sb.AppendLine("# Mouse pointer size: 32 is the Windows default, up to 256. (Windows also scales it with the display.)");
+            sb.AppendLine("TvPointerSize=" + TvPointerSize);
+            sb.AppendLine("NormalPointerSize=" + NormalPointerSize);
+            sb.AppendLine("#");
+            sb.AppendLine("# Which controllers count. All = Xbox-style (XInput) plus PlayStation, Switch Pro and other Bluetooth / 2.4 GHz");
+            sb.AppendLine("# game controllers. XInput = only Xbox-style ones. If something that isn't a controller keeps TV mode on, the log");
+            sb.AppendLine("# (log.txt in this folder) names it with an ID like 054C:0CE6: add that to IgnoreControllers (separate with ;).");
+            sb.AppendLine("DetectControllers=" + DetectControllers);
+            sb.AppendLine("IgnoreControllers=" + IgnoreControllers);
+            sb.AppendLine("#");
+            sb.AppendLine("# How long the controller must stay on / off before switching (avoids flicker on brief signal drops).");
+            sb.AppendLine("SwitchOnDelaySeconds=" + SwitchOnDelaySeconds.ToString(CultureInfo.InvariantCulture));
+            sb.AppendLine("SwitchOffDelaySeconds=" + SwitchOffDelaySeconds.ToString(CultureInfo.InvariantCulture));
+            sb.AppendLine("#");
+            sb.AppendLine("# Transition (milliseconds). SmoothTransition=false switches instantly with no overlay.");
+            sb.AppendLine("#   FadeInMs     blur in");
+            sb.AppendLine("#   SettleMinMs  after switching, reveal once the screen has stopped changing (at least this long)...");
+            sb.AppendLine("#   SettleMaxMs  ...but never wait longer than this");
+            sb.AppendLine("#   CrossfadeMs  dissolve from the old blurred layout to the new blurred layout");
+            sb.AppendLine("#   FadeOutMs    un-blur into the new layout");
+            sb.AppendLine("SmoothTransition=" + (SmoothTransition ? "true" : "false"));
+            sb.AppendLine("FadeInMs=" + FadeInMs);
+            sb.AppendLine("SettleMinMs=" + SettleMinMs);
+            sb.AppendLine("SettleMaxMs=" + SettleMaxMs);
+            sb.AppendLine("CrossfadeMs=" + CrossfadeMs);
+            sb.AppendLine("FadeOutMs=" + FadeOutMs);
+            sb.AppendLine("#");
+            sb.AppendLine("# Auto = follow the controller, TV = always TV mode, Normal = always normal (also set from the tray menu).");
+            sb.AppendLine("Mode=" + Mode);
+            sb.AppendLine("#");
+            sb.AppendLine("# Keyboard shortcut that switches between TV and desktop mode from anywhere (Ctrl/Alt/Shift/Win + a key).");
+            sb.AppendLine("# In automatic mode the switch lasts until the controller next turns on (-> TV) or off (-> desktop).");
+            sb.AppendLine("Hotkey=" + Hotkey);
+            sb.AppendLine("#");
+            sb.AppendLine("# Pause the controller mouse (AntiMicroX) while a game is the window in front, so the game gets the controller.");
+            sb.AppendLine("# A game = anything run from Steam/Epic/Xbox/GOG/EA/Ubisoft/Riot/Rockstar game folders, a folder in GameFolders,");
+            sb.AppendLine("# or a game Windows Game Bar has recognised. NotGames lists exe names to never treat as games.");
+            sb.AppendLine("# Separate multiple entries with ;   e.g.  GameFolders=C:\\Games;D:\\Emulators   NotGames=someapp.exe");
+            sb.AppendLine("PauseMouseInGames=" + (PauseMouseInGames ? "true" : "false"));
+            sb.AppendLine("ResumeAfterGameSeconds=" + ResumeAfterGameSeconds.ToString(CultureInfo.InvariantCulture));
+            sb.AppendLine("GameFolders=" + GameFolders);
+            sb.AppendLine("NotGames=" + NotGames);
+            sb.AppendLine("AntiMicroXPath=" + AntiMicroXPath);
+            sb.AppendLine("AntiMicroXProfile=" + AntiMicroXProfile);
+            File.WriteAllText(FilePath, sb.ToString());
+        }
+    }
+
+    static class Log
+    {
+        static readonly object gate = new object();
+        public static void Write(string msg)
+        {
+            try
+            {
+                lock (gate)
+                {
+                    Directory.CreateDirectory(Settings.Dir);
+                    string p = Path.Combine(Settings.Dir, "log.txt");
+                    if (File.Exists(p) && new FileInfo(p).Length > 200 * 1024) File.Delete(p);
+                    File.AppendAllText(p, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "  " + msg + Environment.NewLine);
+                }
+            }
+            catch { }
+        }
+    }
+
+    // ---------------------------------------------------------------- controller detection
+
+    static class Controller
+    {
+        // 1) XInput: Xbox controllers and pads in "X-input" mode (most 8BitDo pads and dongles, many generic ones).
+        [StructLayout(LayoutKind.Sequential)]
+        struct XINPUT_STATE { public uint Packet; public ushort Buttons; public byte LT, RT; public short LX, LY, RX, RY; }
+        [DllImport("xinput1_4.dll")] static extern uint XInputGetState(uint index, out XINPUT_STATE state);
+
+        // 2) Raw Input HID devices whose usage is joystick / gamepad / multi-axis controller: PlayStation,
+        //    Switch Pro, and generic Bluetooth / 2.4 GHz pads. Listing them is cheap and needs no driver.
+        [StructLayout(LayoutKind.Sequential)] struct RAWINPUTDEVICELIST { public IntPtr hDevice; public uint dwType; }
+        [StructLayout(LayoutKind.Explicit, Size = 32)]
+        struct RID_DEVICE_INFO
+        {
+            [FieldOffset(0)] public uint cbSize;
+            [FieldOffset(4)] public uint dwType;
+            [FieldOffset(8)] public uint VendorId;
+            [FieldOffset(12)] public uint ProductId;
+            [FieldOffset(16)] public uint VersionNumber;
+            [FieldOffset(20)] public ushort UsagePage;
+            [FieldOffset(22)] public ushort Usage;
+        }
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern uint GetRawInputDeviceList([In, Out] RAWINPUTDEVICELIST[] list, ref uint count, uint size);
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern uint GetRawInputDeviceInfo(IntPtr device, uint command, ref RID_DEVICE_INFO data, ref uint size);
+        const uint RIM_TYPEHID = 2, RIDI_DEVICEINFO = 0x2000000b, FAILED = 0xFFFFFFFF;
+
+        // Set from settings.ini: DetectControllers=All|XInput and IgnoreControllers=VID:PID;VID:PID
+        public static bool AllTypes = true;
+        public static HashSet<string> Ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        public static bool AnyConnected() { return Find() != null; }
+
+        // A short description of the first controller that's on (for the log), or null if none is.
+        public static string Find()
+        {
+            for (uint i = 0; i < 4; i++)
+            {
+                XINPUT_STATE s;
+                try { if (XInputGetState(i, out s) == 0) return "Xbox-style controller (XInput slot " + (i + 1) + ")"; }
+                catch { break; } // XInput missing: fall through to HID
+            }
+            return AllTypes ? FindHid() : null;
+        }
+
+        static string FindHid()
+        {
+            try
+            {
+                uint size = (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICELIST));
+                for (int attempt = 0; attempt < 2; attempt++)
+                {
+                    uint count = 0;
+                    if (GetRawInputDeviceList(null, ref count, size) != 0 || count == 0) return null;
+                    var list = new RAWINPUTDEVICELIST[count + 4];
+                    count = (uint)list.Length;
+                    uint got = GetRawInputDeviceList(list, ref count, size);
+                    if (got == FAILED) continue; // a device arrived between the two calls; try again
+                    for (int i = 0; i < got; i++)
+                    {
+                        if (list[i].dwType != RIM_TYPEHID) continue;
+                        var info = new RID_DEVICE_INFO();
+                        info.cbSize = 32;
+                        uint infoSize = 32;
+                        if (GetRawInputDeviceInfo(list[i].hDevice, RIDI_DEVICEINFO, ref info, ref infoSize) == FAILED) continue;
+                        if (info.UsagePage != 0x01) continue;                                          // Generic Desktop
+                        if (info.Usage != 0x04 && info.Usage != 0x05 && info.Usage != 0x08) continue;  // joystick, gamepad, multi-axis
+                        string id = (info.VendorId & 0xFFFF).ToString("X4") + ":" + (info.ProductId & 0xFFFF).ToString("X4");
+                        if (Ignored.Contains(id)) continue;
+                        return Brand(info.VendorId & 0xFFFF) + " (" + id + ")";
+                    }
+                    return null;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        static string Brand(uint vendor)
+        {
+            switch (vendor)
+            {
+                case 0x054C: return "PlayStation controller";
+                case 0x057E: return "Nintendo controller";
+                case 0x045E: return "Xbox controller";
+                case 0x2DC8: return "8BitDo controller";
+                case 0x046D: return "Logitech controller";
+                case 0x0F0D: return "HORI controller";
+                case 0x0E6F: return "PDP controller";
+                case 0x24C6: return "PowerA controller";
+                case 0x28DE: return "Steam controller";
+                default: return "Game controller";
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- display scaling
+
+    // Uses the same (undocumented) DisplayConfig calls the Windows Settings app uses for per-display scaling.
+    static class DisplayScale
+    {
+        [StructLayout(LayoutKind.Sequential)] struct LUID { public uint Low; public int High; }
+        [StructLayout(LayoutKind.Sequential)] struct HEADER { public int type; public int size; public LUID adapterId; public uint id; }
+        [StructLayout(LayoutKind.Sequential)] struct DPI_GET { public HEADER h; public int minRel; public int curRel; public int maxRel; }
+        [StructLayout(LayoutKind.Sequential)] struct DPI_SET { public HEADER h; public int scaleRel; }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct SOURCE_NAME { public HEADER h; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string gdiName; }
+
+        [DllImport("user32.dll")] static extern int GetDisplayConfigBufferSizes(uint flags, out uint numPaths, out uint numModes);
+        [DllImport("user32.dll")] static extern int QueryDisplayConfig(uint flags, ref uint numPaths, IntPtr paths, ref uint numModes, IntPtr modes, IntPtr topology);
+        [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref DPI_GET p);
+        [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref SOURCE_NAME p);
+        [DllImport("user32.dll")] static extern int DisplayConfigSetDeviceInfo(ref DPI_SET p);
+
+        const uint QDC_ONLY_ACTIVE_PATHS = 2;
+        const int GET_SOURCE_NAME = 1, GET_DPI = -3, SET_DPI = -4;
+        static readonly int[] Steps = { 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500 };
+
+        static bool FindPrimary(out LUID adapter, out uint sourceId)
+        {
+            adapter = new LUID(); sourceId = 0;
+            string primary = Screen.PrimaryScreen.DeviceName;
+            uint np, nm;
+            if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out np, out nm) != 0 || np == 0) return false;
+            IntPtr paths = Marshal.AllocHGlobal((int)np * 72), modes = Marshal.AllocHGlobal((int)Math.Max(nm, 1) * 64);
+            try
+            {
+                if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref np, paths, ref nm, modes, IntPtr.Zero) != 0) return false;
+                bool found = false;
+                for (int i = 0; i < np; i++)
+                {
+                    IntPtr p = new IntPtr(paths.ToInt64() + i * 72);
+                    var luid = new LUID { Low = (uint)Marshal.ReadInt32(p, 0), High = Marshal.ReadInt32(p, 4) };
+                    uint sid = (uint)Marshal.ReadInt32(p, 8);
+                    var sn = new SOURCE_NAME();
+                    sn.h.type = GET_SOURCE_NAME; sn.h.size = Marshal.SizeOf(typeof(SOURCE_NAME)); sn.h.adapterId = luid; sn.h.id = sid;
+                    DisplayConfigGetDeviceInfo(ref sn);
+                    bool match = string.Equals(sn.gdiName, primary, StringComparison.OrdinalIgnoreCase);
+                    if (!found || match)
+                    {
+                        adapter = luid; sourceId = sid; found = true;
+                        if (match) return true;
+                    }
+                }
+                return found; // fall back to the first display if no name matches
+            }
+            finally { Marshal.FreeHGlobal(paths); Marshal.FreeHGlobal(modes); }
+        }
+
+        static bool Query(out LUID adapter, out uint sourceId, out DPI_GET info)
+        {
+            info = new DPI_GET();
+            if (!FindPrimary(out adapter, out sourceId)) return false;
+            info.h.type = GET_DPI; info.h.size = Marshal.SizeOf(typeof(DPI_GET)); info.h.adapterId = adapter; info.h.id = sourceId;
+            return DisplayConfigGetDeviceInfo(ref info) == 0;
+        }
+
+        static int TargetRel(DPI_GET g, int percent)
+        {
+            int recIdx = Math.Abs(g.minRel), target = 0, bestDiff = int.MaxValue;
+            for (int i = 0; i < Steps.Length; i++)
+            {
+                int diff = Math.Abs(Steps[i] - percent);
+                if (diff < bestDiff) { bestDiff = diff; target = i; }
+            }
+            return Math.Max(g.minRel, Math.Min(g.maxRel, target - recIdx));
+        }
+
+        public static int GetCurrent()
+        {
+            LUID a; uint id; DPI_GET g;
+            if (!Query(out a, out id, out g)) return -1;
+            int idx = Math.Abs(g.minRel) + g.curRel;
+            return (idx >= 0 && idx < Steps.Length) ? Steps[idx] : -1;
+        }
+
+        public static bool WouldChange(int percent)
+        {
+            LUID a; uint id; DPI_GET g;
+            if (!Query(out a, out id, out g)) return false;
+            return TargetRel(g, percent) != g.curRel;
+        }
+
+        public static string Set(int percent)
+        {
+            LUID a; uint id; DPI_GET g;
+            if (!Query(out a, out id, out g)) return "could not read display scaling";
+            int rel = TargetRel(g, percent);
+            if (rel == g.curRel) return null; // already there
+            var s = new DPI_SET();
+            s.h.type = SET_DPI; s.h.size = Marshal.SizeOf(typeof(DPI_SET)); s.h.adapterId = a; s.h.id = id; s.scaleRel = rel;
+            int err = DisplayConfigSetDeviceInfo(ref s);
+            return err == 0 ? null : "setting display scaling failed (error " + err + ")";
+        }
+    }
+
+    // ---------------------------------------------------------------- pointer size
+
+    static class PointerSize
+    {
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern bool SystemParametersInfo(uint action, uint uiParam, IntPtr pvParam, uint winIni);
+        const uint SPI_SETCURSORBASESIZE = 0x2029; // same call Settings > Accessibility > Mouse pointer uses
+        const uint SPIF_UPDATEINIFILE = 0x01;
+        const uint WM_SETTINGCHANGE = 0x001A;
+
+        public static int Clamp(int size) { return Math.Max(32, Math.Min(256, size)); }
+
+        public static int Get()
+        {
+            using (var k = Registry.CurrentUser.OpenSubKey(@"Control Panel\Cursors"))
+            {
+                object v = k == null ? null : k.GetValue("CursorBaseSize");
+                return v is int ? (int)v : 32;
+            }
+        }
+
+        public static string Set(int size)
+        {
+            size = Clamp(size);
+            if (Get() == size) return null;
+            // Apply + save without the blocking "tell every app and wait" broadcast...
+            bool ok = SystemParametersInfo(SPI_SETCURSORBASESIZE, 0, new IntPtr(size), SPIF_UPDATEINIFILE);
+            int lastErr = Marshal.GetLastWin32Error();
+            // ...then tell apps without waiting for them.
+            try { Native.SendNotifyMessage(new IntPtr(0xFFFF), WM_SETTINGCHANGE, new UIntPtr(SPI_SETCURSORBASESIZE), IntPtr.Zero); } catch { }
+            try
+            {
+                // Keep the slider in Settings > Accessibility > Mouse pointer in sync (1..15, steps of 16px).
+                using (var k = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Accessibility"))
+                    k.SetValue("CursorSize", Math.Max(1, Math.Min(15, (size - 32) / 16 + 1)), RegistryValueKind.DWord);
+            }
+            catch { }
+            return ok ? null : "setting pointer size failed (error " + lastErr + ")";
+        }
+    }
+
+    // ---------------------------------------------------------------- transition visuals
+
+    static class Visuals
+    {
+        const int CaptureDivisor = 20;
+
+        // Fast, already-softened screen capture at 1/20 size (the overlay windows are excluded from it).
+        public static Bitmap CaptureSmall(Rectangle b)
+        {
+            int sw = Math.Max(1, b.Width / CaptureDivisor), sh = Math.Max(1, b.Height / CaptureDivisor);
+            var bmp = new Bitmap(sw, sh, PixelFormat.Format32bppRgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                IntPtr dst = g.GetHdc();
+                IntPtr src = Native.GetDC(IntPtr.Zero);
+                try
+                {
+                    Native.SetStretchBltMode(dst, 4 /*HALFTONE*/);
+                    Native.SetBrushOrgEx(dst, 0, 0, IntPtr.Zero);
+                    Native.StretchBlt(dst, 0, 0, sw, sh, src, b.X, b.Y, b.Width, b.Height, 0x00CC0020 /*SRCCOPY*/ | 0x40000000 /*CAPTUREBLT*/);
+                }
+                finally { Native.ReleaseDC(IntPtr.Zero, src); g.ReleaseHdc(dst); }
+            }
+            return bmp;
+        }
+
+        // Fraction (0..1) of the screen that visibly changed between two same-size captures.
+        // A rescale changes nearly everything; a playing video or blinking cursor only a small patch.
+        public static double ChangedFraction(Bitmap a, Bitmap b)
+        {
+            if (a.Width != b.Width || a.Height != b.Height) return 1;
+            var r = new Rectangle(0, 0, a.Width, a.Height);
+            BitmapData da = a.LockBits(r, ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+            BitmapData db = b.LockBits(r, ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+            try
+            {
+                int n = da.Stride * a.Height;
+                byte[] x = new byte[n], y = new byte[n];
+                Marshal.Copy(da.Scan0, x, 0, n);
+                Marshal.Copy(db.Scan0, y, 0, n);
+                int changed = 0;
+                for (int row = 0; row < a.Height; row++)
+                {
+                    int o = row * da.Stride;
+                    for (int col = 0; col < a.Width; col++, o += 4)
+                        if (Math.Abs(x[o] - y[o]) + Math.Abs(x[o + 1] - y[o + 1]) + Math.Abs(x[o + 2] - y[o + 2]) > 24) changed++;
+                }
+                return (double)changed / (a.Width * a.Height);
+            }
+            finally { a.UnlockBits(da); b.UnlockBits(db); }
+        }
+
+        // Mean absolute difference per colour channel (0..255) between two same-size captures.
+        public static double Diff(Bitmap a, Bitmap b)
+        {
+            if (a.Width != b.Width || a.Height != b.Height) return 255;
+            var r = new Rectangle(0, 0, a.Width, a.Height);
+            BitmapData da = a.LockBits(r, ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+            BitmapData db = b.LockBits(r, ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+            try
+            {
+                int n = da.Stride * a.Height;
+                byte[] x = new byte[n], y = new byte[n];
+                Marshal.Copy(da.Scan0, x, 0, n);
+                Marshal.Copy(db.Scan0, y, 0, n);
+                long sum = 0; int count = 0;
+                for (int row = 0; row < a.Height; row++)
+                {
+                    int o = row * da.Stride;
+                    for (int col = 0; col < a.Width; col++, o += 4)
+                    {
+                        sum += Math.Abs(x[o] - y[o]) + Math.Abs(x[o + 1] - y[o + 1]) + Math.Abs(x[o + 2] - y[o + 2]);
+                        count += 3;
+                    }
+                }
+                return count == 0 ? 0 : (double)sum / count;
+            }
+            finally { a.UnlockBits(da); b.UnlockBits(db); }
+        }
+
+        static string IconFont()
+        {
+            foreach (var f in FontFamily.Families)
+                if (f.Name == "Segoe Fluent Icons") return f.Name;
+            return "Segoe MDL2 Assets";
+        }
+
+        // Frosted, dimmed full-size version of a small capture, with a centered card. Returns where the progress bar goes.
+        public static Bitmap MakeBackdrop(Bitmap small, Size full, bool tv, string reason, out Rectangle indicator)
+        {
+            int w = full.Width, h = full.Height;
+            var bg = new Bitmap(w, h, PixelFormat.Format32bppPArgb);
+            using (var tiny = new Bitmap(Math.Max(1, small.Width / 2), Math.Max(1, small.Height / 2), PixelFormat.Format32bppRgb))
+            {
+                using (var g = Graphics.FromImage(tiny))
+                {
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    g.DrawImage(small, new Rectangle(0, 0, tiny.Width, tiny.Height));
+                }
+                using (var g = Graphics.FromImage(bg))
+                using (var ia = new ImageAttributes())
+                {
+                    ia.SetWrapMode(WrapMode.TileFlipXY); // no dark edges when blurring
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    g.DrawImage(tiny, new Rectangle(0, 0, w, h), 0, 0, tiny.Width, tiny.Height, GraphicsUnit.Pixel, ia);
+                }
+            }
+
+            using (var g = Graphics.FromImage(bg))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+                // Dim, slightly darker toward the bottom, plus a soft vignette.
+                using (var dim = new LinearGradientBrush(new Rectangle(0, 0, w, h), Color.FromArgb(145, 8, 10, 16), Color.FromArgb(185, 6, 8, 12), LinearGradientMode.Vertical))
+                    g.FillRectangle(dim, 0, 0, w, h);
+                using (var path = new GraphicsPath())
+                {
+                    path.AddEllipse(-w * 0.25f, -h * 0.6f, w * 1.5f, h * 2.2f);
+                    using (var vig = new PathGradientBrush(path))
+                    {
+                        vig.CenterColor = Color.FromArgb(0, 0, 0, 0);
+                        vig.SurroundColors = new[] { Color.FromArgb(110, 0, 0, 0) };
+                        vig.FocusScales = new PointF(0.55f, 0.55f);
+                        g.FillRectangle(vig, 0, 0, w, h);
+                    }
+                }
+
+                float s = h / 1440f, cx = w / 2f, cy = h / 2f;
+                string glyph = tv ? "\uE7FC" : "\uE7F4"; // game controller / monitor
+                string title = tv ? "TV mode" : "Desktop mode";
+                string sub = reason == "manual" ? "Switched from the tray menu"
+                           : reason == "preview" ? "Preview"
+                           : reason == "controller" ? (tv ? "Controller connected" : "Controller turned off")
+                           : reason; // any other text is shown as-is (e.g. "Switched with Ctrl+Alt+T")
+
+                using (var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                using (var iconFont = new Font(IconFont(), 88 * s, FontStyle.Regular, GraphicsUnit.Pixel))
+                using (var titleFont = new Font("Segoe UI Semibold", 54 * s, FontStyle.Regular, GraphicsUnit.Pixel))
+                using (var subFont = new Font("Segoe UI", 26 * s, FontStyle.Regular, GraphicsUnit.Pixel))
+                using (var shadow = new SolidBrush(Color.FromArgb(90, 0, 0, 0)))
+                using (var white = new SolidBrush(Color.FromArgb(245, 255, 255, 255)))
+                using (var soft = new SolidBrush(Color.FromArgb(185, 255, 255, 255)))
+                {
+                    float off = 2 * s;
+                    var iconRect = new RectangleF(cx - 150 * s, cy - 150 * s, 300 * s, 116 * s);
+                    var titleRect = new RectangleF(cx - 400 * s, cy - 26 * s, 800 * s, 74 * s);
+                    var subRect = new RectangleF(cx - 400 * s, cy + 46 * s, 800 * s, 40 * s);
+                    foreach (var item in new[] { new { r = iconRect, f = iconFont, t = glyph, b = (Brush)white },
+                                                 new { r = titleRect, f = titleFont, t = title, b = (Brush)white },
+                                                 new { r = subRect, f = subFont, t = sub, b = (Brush)soft } })
+                    {
+                        var rs = item.r; rs.Offset(0, off);
+                        g.DrawString(item.t, item.f, shadow, rs, fmt);
+                        g.DrawString(item.t, item.f, item.b, item.r, fmt);
+                    }
+                }
+                indicator = Rectangle.Round(new RectangleF(cx - 120 * s, cy + 118 * s, 240 * s, Math.Max(4, 5 * s)));
+            }
+            return bg;
+        }
+
+        // Slim progress bar: an indeterminate sweep while switching, full once done. phase 0..1 loops.
+        public static void DrawIndicator(Graphics g, Rectangle r, double phase, bool complete)
+        {
+            if (r.Width <= 0) return;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.CompositingMode = CompositingMode.SourceOver;
+            using (var track = Pill(r))
+            {
+                if (complete)
+                {
+                    using (var full = new SolidBrush(Color.FromArgb(230, 255, 255, 255))) g.FillPath(full, track);
+                    return;
+                }
+                using (var trackBrush = new SolidBrush(Color.FromArgb(55, 255, 255, 255))) g.FillPath(trackBrush, track);
+                double e = phase < 0.5 ? 4 * phase * phase * phase : 1 - Math.Pow(-2 * phase + 2, 3) / 2;
+                float segW = r.Width * 0.32f;
+                float x = (float)(r.X - segW + (r.Width + segW) * e);
+                var old = g.Clip;
+                using (var clip = new Region(track))
+                {
+                    g.SetClip(clip, CombineMode.Intersect);
+                    using (var segPath = Pill(Rectangle.Round(new RectangleF(x, r.Y, segW, r.Height))))
+                    using (var segBrush = new SolidBrush(Color.FromArgb(230, 255, 255, 255)))
+                        g.FillPath(segBrush, segPath);
+                    g.Clip = old;
+                }
+            }
+        }
+
+        static GraphicsPath Pill(Rectangle r)
+        {
+            var p = new GraphicsPath();
+            int d = Math.Max(1, r.Height);
+            p.AddArc(r.X, r.Y, d, d, 90, 180);
+            p.AddArc(r.Right - d, r.Y, d, d, 270, 180);
+            p.CloseFigure();
+            return p;
+        }
+    }
+
+    // A full-screen overlay: topmost, never activates, hides the pointer, never re-sizes on DPI changes,
+    // left out of screen captures, and faded with per-window alpha (composited by DWM, no repainting).
+    class Veil : Form
+    {
+        const int WM_DPICHANGED = 0x02E0, WM_SETCURSOR = 0x0020, WM_MOUSEACTIVATE = 0x0021, MA_NOACTIVATE = 3;
+        const uint LWA_ALPHA = 0x2, WDA_EXCLUDEFROMCAPTURE = 0x11;
+
+        readonly Bitmap bg;
+        readonly Rectangle indicator;
+        double phase;
+        bool complete;
+
+        public Veil(Bitmap background, Rectangle bounds, Rectangle indicatorRect)
+        {
+            bg = background; indicator = indicatorRect;
+            AutoScaleMode = AutoScaleMode.None;
+            FormBorderStyle = FormBorderStyle.None;
+            ShowInTaskbar = false;
+            StartPosition = FormStartPosition.Manual;
+            TopMost = true;
+            BackColor = Color.Black;
+            Bounds = bounds;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.Opaque | ControlStyles.OptimizedDoubleBuffer, true);
+        }
+
+        protected override bool ShowWithoutActivation { get { return true; } }
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                var cp = base.CreateParams;
+                cp.ExStyle |= 0x80 /*TOOLWINDOW*/ | 0x08000000 /*NOACTIVATE*/ | 0x08 /*TOPMOST*/ | 0x80000 /*LAYERED*/;
+                return cp;
+            }
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Native.SetLayeredWindowAttributes(Handle, 0, 0, LWA_ALPHA); // start invisible
+            int on = 1;
+            try { Native.DwmSetWindowAttribute(Handle, 3 /*DWMWA_TRANSITIONS_FORCEDISABLED*/, ref on, 4); } catch { }
+            try { Native.SetWindowDisplayAffinity(Handle, WDA_EXCLUDEFROMCAPTURE); } catch { }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            switch (m.Msg)
+            {
+                case WM_DPICHANGED: m.Result = IntPtr.Zero; return;                     // stay pixel-for-pixel full screen
+                case WM_SETCURSOR: Native.SetCursor(IntPtr.Zero); m.Result = new IntPtr(1); return; // hide the pointer
+                case WM_MOUSEACTIVATE: m.Result = new IntPtr(MA_NOACTIVATE); return;
+            }
+            base.WndProc(ref m);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.CompositingMode = CompositingMode.SourceCopy;
+            g.InterpolationMode = InterpolationMode.NearestNeighbor;
+            g.DrawImage(bg, e.ClipRectangle, e.ClipRectangle, GraphicsUnit.Pixel);
+            if (e.ClipRectangle.IntersectsWith(indicator)) Visuals.DrawIndicator(g, indicator, phase, complete);
+        }
+
+        public void SetAlpha(byte a) { if (IsHandleCreated) Native.SetLayeredWindowAttributes(Handle, 0, a, LWA_ALPHA); }
+
+        public void KeepOnTop()
+        {
+            if (IsHandleCreated)
+                Native.SetWindowPos(Handle, Native.HWND_TOPMOST, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_NOOWNERZORDER);
+        }
+
+        public void PlaceBelow(Veil other)
+        {
+            Native.SetWindowPos(Handle, other.Handle, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_NOOWNERZORDER);
+        }
+
+        public void TickIndicator(double p)
+        {
+            phase = p;
+            var r = indicator; r.Inflate(4, 4);
+            Invalidate(r);
+        }
+
+        public void MarkComplete()
+        {
+            complete = true;
+            var r = indicator; r.Inflate(4, 4);
+            Invalidate(r);
+            Update();
+        }
+    }
+
+    // Blur in -> switch on a background thread -> wait until the screen is still ->
+    // dissolve to a blurred snapshot of the new layout -> un-blur into it.
+    class Transition
+    {
+        public delegate string Work();
+        public event EventHandler Finished;
+        public string Error;
+
+        readonly bool tv; readonly string reason; readonly Work work; readonly Settings cfg;
+        readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
+        readonly Stopwatch loopClock = new Stopwatch(), total = new Stopwatch();
+        Rectangle bounds, indicator;
+        Veil veil1, veil2;
+        Bitmap bg1, bg2;
+        int topTick;
+
+        public Transition(bool toTv, string why, Work w, Settings settings)
+        {
+            tv = toTv; reason = why; work = w; cfg = settings;
+            timer.Interval = 10;
+            timer.Tick += delegate
+            {
+                veil1.TickIndicator((loopClock.Elapsed.TotalMilliseconds % 1500) / 1500.0);
+                if (++topTick % 8 == 0) veil1.KeepOnTop(); // Windows may re-raise the taskbar while rescaling
+            };
+        }
+
+        static double OutCubic(double p) { return 1 - Math.Pow(1 - p, 3); }
+        static double InOutSine(double p) { return -(Math.Cos(Math.PI * p) - 1) / 2; }
+        static double InOutCubic(double p) { return p < 0.5 ? 4 * p * p * p : 1 - Math.Pow(-2 * p + 2, 3) / 2; }
+
+        // Vsync-paced alpha animation (blocks the UI thread for its duration; DWM keeps showing the window).
+        static void Fade(Veil v, int from, int to, int ms, Func<double, double> ease)
+        {
+            var sw = Stopwatch.StartNew();
+            while (true)
+            {
+                double p = ms <= 0 ? 1 : Math.Min(1, sw.Elapsed.TotalMilliseconds / ms);
+                v.SetAlpha((byte)Math.Round(from + (to - from) * ease(p)));
+                if (p >= 1) break;
+                Native.WaitFrame();
+            }
+        }
+
+        public void Start()
+        {
+            total.Start();
+            Native.timeBeginPeriod(1);
+            bounds = Screen.PrimaryScreen.Bounds;
+            var sw = Stopwatch.StartNew();
+            using (var small = Visuals.CaptureSmall(bounds))
+                bg1 = Visuals.MakeBackdrop(small, bounds.Size, tv, reason, out indicator);
+            long prepMs = sw.ElapsedMilliseconds;
+
+            veil1 = new Veil(bg1, bounds, indicator);
+            veil1.Show();
+            veil1.Refresh();
+            veil1.KeepOnTop();
+            Native.NudgeCursor();
+            Fade(veil1, 0, 255, cfg.FadeInMs, OutCubic);
+            Log.Write("transition: prep " + prepMs + " ms, fade-in done at " + total.ElapsedMilliseconds + " ms");
+
+            loopClock.Start();
+            timer.Start();
+            var th = new Thread(WorkerMain);
+            th.IsBackground = true;
+            th.Start();
+        }
+
+        void WorkerMain()
+        {
+            var sw = Stopwatch.StartNew();
+            string err = null;
+            try { err = work(); } catch (Exception ex) { err = ex.Message; }
+            long workMs = sw.ElapsedMilliseconds;
+
+            // Wait until the screen (minus our overlay) stops changing, so the reveal shows a finished layout.
+            sw.Restart();
+            Bitmap prev = null;
+            int stableRuns = 0;
+            try
+            {
+                while (true)
+                {
+                    Thread.Sleep(90);
+                    Bitmap cur = Visuals.CaptureSmall(bounds);
+                    if (prev != null)
+                    {
+                        stableRuns = Visuals.ChangedFraction(prev, cur) < 0.15 ? stableRuns + 1 : 0;
+                        prev.Dispose();
+                    }
+                    prev = cur;
+                    long el = sw.ElapsedMilliseconds;
+                    if ((stableRuns >= 2 && el >= cfg.SettleMinMs) || el >= cfg.SettleMaxMs) break;
+                }
+            }
+            catch (Exception ex) { Log.Write("settle check failed: " + ex.Message); }
+            long settleMs = sw.ElapsedMilliseconds;
+
+            Bitmap newBg = null;
+            try
+            {
+                if (prev != null) { Rectangle ignore; newBg = Visuals.MakeBackdrop(prev, bounds.Size, tv, reason, out ignore); }
+            }
+            catch (Exception ex) { Log.Write("new backdrop failed: " + ex.Message); }
+            if (prev != null) prev.Dispose();
+
+            string timing = "switch " + workMs + " ms, settle " + settleMs + " ms (" + (stableRuns >= 2 ? "screen still" : "hit max") + ")";
+            try { veil1.BeginInvoke((MethodInvoker)delegate { Reveal(newBg, err, timing); }); } catch { }
+        }
+
+        void Reveal(Bitmap newBg, string err, string timing)
+        {
+            Error = err;
+            timer.Stop();
+            veil1.MarkComplete();
+            try
+            {
+                if (newBg != null)
+                {
+                    bg2 = newBg;
+                    veil2 = new Veil(bg2, bounds, indicator);
+                    veil2.MarkComplete();
+                    veil2.Show();             // invisible (alpha 0) until placed under veil1
+                    veil2.Refresh();
+                    veil2.PlaceBelow(veil1);
+                    veil2.SetAlpha(255);
+                    Native.WaitFrame();
+                    Fade(veil1, 255, 0, cfg.CrossfadeMs, InOutSine); // old blurred layout -> new blurred layout
+                    CloseVeil(ref veil1, ref bg1);
+                    Fade(veil2, 255, 0, cfg.FadeOutMs, InOutCubic);  // un-blur into the new layout
+                    CloseVeil(ref veil2, ref bg2);
+                }
+                else
+                {
+                    Fade(veil1, 255, 0, cfg.FadeOutMs, InOutCubic);
+                    CloseVeil(ref veil1, ref bg1);
+                }
+            }
+            finally
+            {
+                CloseVeil(ref veil1, ref bg1);
+                CloseVeil(ref veil2, ref bg2);
+                Native.NudgeCursor(); // bring the pointer back
+                Native.timeEndPeriod(1);
+                Log.Write("transition: " + timing + ", total " + total.ElapsedMilliseconds + " ms");
+                if (Finished != null) Finished(this, EventArgs.Empty);
+            }
+        }
+
+        static void CloseVeil(ref Veil v, ref Bitmap b)
+        {
+            if (v != null) { try { v.Close(); v.Dispose(); } catch { } v = null; }
+            if (b != null) { b.Dispose(); b = null; }
+        }
+    }
+
+    // ---------------------------------------------------------------- game detection
+
+    // Decides whether the window in front belongs to a game.
+    class GameDetector
+    {
+        [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+        [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool QueryFullProcessImageName(IntPtr h, int flags, StringBuilder name, ref int size);
+        [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+        const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
+        // Standard places launchers install games (matched anywhere in the path, any drive).
+        static readonly string[] LauncherFolders = {
+            @"\steamapps\common\", @"\xboxgames\", @"\epic games\", @"\gog galaxy\games\", @"\gog games\",
+            @"\ea games\", @"\ubisoft game launcher\games\", @"\riot games\", @"\rockstar games\" };
+        // Launchers and tools that live inside those folders but aren't games.
+        static readonly string[] NotGameFolders = {
+            @"\epic games\launcher\", @"\epic games\epic online services\", @"\riot games\riot client\",
+            @"\rockstar games\launcher\", @"\rockstar games\social club\", @"\steamapps\common\steamworks shared\",
+            @"\steamapps\common\steam controller configs\", @"\steamapps\common\wallpaper_engine\", @"\steamapps\common\steamvr\" };
+
+        List<string> extraFolders = new List<string>();
+        HashSet<string> knownGameExes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);     // full paths
+        HashSet<string> knownGameNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);    // file names (fallback)
+        HashSet<string> notGames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        DateTime lastRefresh = DateTime.MinValue;
+        uint cachedPid; string cachedPath; bool cachedResult;
+
+        public void Configure(Settings s)
+        {
+            extraFolders.Clear();
+            foreach (var f in (s.GameFolders ?? "").Split(';'))
+            {
+                string t = f.Trim().TrimEnd('\\');
+                if (t.Length > 0) extraFolders.Add(t.ToLowerInvariant() + "\\");
+            }
+            notGames.Clear();
+            foreach (var n in (s.NotGames ?? "").Split(';'))
+                if (n.Trim().Length > 0) notGames.Add(Path.GetFileName(n.Trim()));
+            lastRefresh = DateTime.MinValue; cachedPid = 0;
+        }
+
+        // Games Windows Game Bar has recognised (refreshed every minute).
+        void RefreshKnownGames()
+        {
+            if ((DateTime.Now - lastRefresh).TotalSeconds < 60) return;
+            lastRefresh = DateTime.Now;
+            knownGameExes.Clear(); knownGameNames.Clear();
+            try
+            {
+                using (var root = Registry.CurrentUser.OpenSubKey(@"System\GameConfigStore\Children"))
+                {
+                    if (root == null) return;
+                    foreach (var name in root.GetSubKeyNames())
+                        using (var k = root.OpenSubKey(name))
+                        {
+                            var p = k == null ? null : k.GetValue("MatchedExeFullPath") as string;
+                            if (string.IsNullOrEmpty(p)) continue;
+                            knownGameExes.Add(p);
+                            knownGameNames.Add(Path.GetFileName(p));
+                        }
+                }
+            }
+            catch { }
+        }
+
+        public bool IsGamePath(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            if (notGames.Contains(Path.GetFileName(path))) return false;
+            string p = path.ToLowerInvariant();
+            foreach (var n in NotGameFolders) if (p.Contains(n)) return false;
+            foreach (var f in LauncherFolders) if (p.Contains(f)) return true;
+            foreach (var f in extraFolders) if (p.StartsWith(f)) return true;
+            RefreshKnownGames();
+            return knownGameExes.Contains(path);
+        }
+
+        // Returns the game's exe name if the window in front is a game, otherwise null.
+        public string GameInFront()
+        {
+            uint pid;
+            GetWindowThreadProcessId(GetForegroundWindow(), out pid);
+            if (pid == 0 || pid == (uint)Process.GetCurrentProcess().Id) return null;
+            if (pid != cachedPid)
+            {
+                cachedPid = pid;
+                cachedPath = ExePath(pid);
+                if (cachedPath != null) cachedResult = IsGamePath(cachedPath);
+                else
+                {
+                    // Can't read the path (e.g. protected by anti-cheat): fall back to the process name.
+                    string name = null;
+                    try { name = Process.GetProcessById((int)pid).ProcessName + ".exe"; } catch { }
+                    RefreshKnownGames();
+                    cachedPath = name;
+                    cachedResult = name != null && knownGameNames.Contains(name) && !notGames.Contains(name);
+                }
+            }
+            return cachedResult ? Path.GetFileName(cachedPath) : null;
+        }
+
+        static string ExePath(uint pid)
+        {
+            IntPtr h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+            if (h == IntPtr.Zero) return null;
+            try
+            {
+                var sb = new StringBuilder(1024); int size = sb.Capacity;
+                return QueryFullProcessImageName(h, 0, sb, ref size) ? sb.ToString() : null;
+            }
+            finally { CloseHandle(h); }
+        }
+    }
+
+    // Stops / restarts AntiMicroX (the controller-to-mouse mapper) around games.
+    static class MouseMapper
+    {
+        public static bool IsRunning() { return Process.GetProcessesByName("antimicrox").Length > 0; }
+
+        public static void Stop()
+        {
+            foreach (var p in Process.GetProcessesByName("antimicrox"))
+            {
+                try { p.Kill(); p.WaitForExit(2000); } catch { }
+                finally { p.Dispose(); }
+            }
+        }
+
+        public static string Start(Settings s)
+        {
+            try
+            {
+                if (IsRunning()) return null;
+                var psi = new ProcessStartInfo(s.AntiMicroXPath, "--tray --profile \"" + s.AntiMicroXProfile + "\"");
+                psi.WorkingDirectory = Path.GetDirectoryName(s.AntiMicroXPath);
+                psi.UseShellExecute = false;
+                Process.Start(psi).Dispose();
+                return null;
+            }
+            catch (Exception ex) { return ex.Message; }
+        }
+    }
+
+    // ---------------------------------------------------------------- global keyboard shortcut
+
+    // Listens for a system-wide shortcut such as "Ctrl+Alt+T" (works whichever app is in front).
+    class HotkeyListener : NativeWindow, IDisposable
+    {
+        [DllImport("user32.dll", SetLastError = true)] static extern bool RegisterHotKey(IntPtr hwnd, int id, uint mods, uint vk);
+        [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr hwnd, int id);
+        const int WM_HOTKEY = 0x0312, Id = 1;
+        const uint MOD_ALT = 1, MOD_CONTROL = 2, MOD_SHIFT = 4, MOD_WIN = 8, MOD_NOREPEAT = 0x4000;
+
+        public event EventHandler Pressed;
+        public string Current;  // the registered shortcut, or null
+        public string Error;
+
+        public HotkeyListener() { CreateHandle(new CreateParams()); }
+
+        public bool Register(string spec)
+        {
+            Unregister();
+            uint mods; Keys key;
+            if (!Parse(spec, out mods, out key)) { Error = "couldn't read the shortcut \"" + spec + "\""; return false; }
+            if (!RegisterHotKey(Handle, Id, mods | MOD_NOREPEAT, (uint)key))
+            {
+                Error = spec + " is already taken by another app (error " + Marshal.GetLastWin32Error() + ")";
+                return false;
+            }
+            Current = spec; Error = null;
+            return true;
+        }
+
+        public void Unregister()
+        {
+            if (Current != null) { UnregisterHotKey(Handle, Id); Current = null; }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_HOTKEY && m.WParam.ToInt32() == Id && Pressed != null) Pressed(this, EventArgs.Empty);
+            base.WndProc(ref m);
+        }
+
+        static bool Parse(string spec, out uint mods, out Keys key)
+        {
+            mods = 0; key = Keys.None;
+            if (string.IsNullOrEmpty(spec)) return false;
+            foreach (var raw in spec.Split('+'))
+            {
+                string t = raw.Trim();
+                switch (t.ToLowerInvariant())
+                {
+                    case "ctrl": case "control": mods |= MOD_CONTROL; break;
+                    case "alt": mods |= MOD_ALT; break;
+                    case "shift": mods |= MOD_SHIFT; break;
+                    case "win": case "windows": mods |= MOD_WIN; break;
+                    default:
+                        if (t.Length == 1 && char.IsDigit(t[0])) t = "D" + t; // "1" -> Keys.D1
+                        Keys k;
+                        if (!Enum.TryParse(t, true, out k)) return false;
+                        key = k;
+                        break;
+                }
+            }
+            return key != Keys.None && mods != 0;
+        }
+
+        public void Dispose()
+        {
+            Unregister();
+            DestroyHandle();
+        }
+    }
+
+    // ---------------------------------------------------------------- tray app
+
+    class TrayApp : ApplicationContext
+    {
+        public const string ExitEventName = "Local\\LeanbackMode_Exit"; // set by "LeanbackMode.exe --exit"
+        EventWaitHandle exitEvent;
+        Settings settings;
+        readonly NotifyIcon tray = new NotifyIcon();
+        readonly System.Windows.Forms.Timer poll = new System.Windows.Forms.Timer();
+        readonly System.Windows.Forms.Timer reloadDebounce = new System.Windows.Forms.Timer();
+        readonly Control invoker = new Control();
+        FileSystemWatcher watcher;
+        readonly Icon iconTv, iconNormal;
+        ToolStripMenuItem statusItem, autoItem, tvItem, normalItem;
+
+        bool rawConnected, stableConnected;
+        DateTime rawSince = DateTime.Now;
+        bool? appliedTv; // null = nothing applied yet
+        bool busy, exitRequested;
+        string pendingReason;     // why the next switch happens (shown on the overlay)
+        bool? overrideTv;         // set by the shortcut; cleared the next time the controller turns on/off
+        HotkeyListener hotkey;
+        ToolStripMenuItem toggleItem;
+
+        readonly GameDetector games = new GameDetector();
+        ToolStripMenuItem mouseStatusItem, pauseInGamesItem;
+        bool gameRaw, mousePausedByUs;
+        DateTime gameRawSince = DateTime.Now;
+        string pausedFor;
+
+        public TrayApp()
+        {
+            invoker.CreateControl();
+            IntPtr ensureHandle = invoker.Handle; // a handle for BeginInvoke from other threads
+            GC.KeepAlive(ensureHandle);
+            settings = Settings.Load();
+            games.Configure(settings);
+            iconTv = MakeIcon(true);
+            iconNormal = MakeIcon(false);
+
+            var menu = new ContextMenuStrip();
+            statusItem = new ToolStripMenuItem("Leanback Mode") { Enabled = false };
+            toggleItem = new ToolStripMenuItem("Switch TV / desktop mode", null, delegate { ToggleMode("Switched from the tray menu"); });
+            autoItem = new ToolStripMenuItem("Follow controller (automatic)", null, delegate { SetMode("Auto"); });
+            tvItem = new ToolStripMenuItem("Always TV mode", null, delegate { SetMode("TV"); });
+            normalItem = new ToolStripMenuItem("Always desktop mode", null, delegate { SetMode("Normal"); });
+            mouseStatusItem = new ToolStripMenuItem("Controller mouse") { Enabled = false };
+            pauseInGamesItem = new ToolStripMenuItem("Pause controller mouse in games", null, delegate
+            {
+                settings.PauseMouseInGames = !settings.PauseMouseInGames;
+                try { settings.Save(); } catch (Exception ex) { Log.Write("save failed: " + ex.Message); }
+                UpdateUi();
+            });
+            menu.Items.Add(statusItem);
+            menu.Items.Add(toggleItem);
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(autoItem);
+            menu.Items.Add(tvItem);
+            menu.Items.Add(normalItem);
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(mouseStatusItem);
+            menu.Items.Add(pauseInGamesItem);
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Opening += delegate { UpdateUi(); };
+            menu.Items.Add(new ToolStripMenuItem("Preview transition", null, delegate { Preview(); }));
+            menu.Items.Add(new ToolStripMenuItem("Edit settings...", null, delegate { Process.Start("notepad.exe", "\"" + Settings.FilePath + "\""); }));
+            menu.Items.Add(new ToolStripMenuItem("Exit (back to desktop mode)", null, delegate { ExitApp(); }));
+            tray.ContextMenuStrip = menu;
+
+            hotkey = new HotkeyListener();
+            hotkey.Pressed += delegate { ToggleMode("Switched with " + settings.Hotkey); };
+            RegisterHotkey();
+            tray.MouseClick += delegate(object s, MouseEventArgs e)
+            {
+                if (e.Button == MouseButtons.Left)
+                    typeof(NotifyIcon).GetMethod("ShowContextMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(tray, null);
+            };
+
+            // Start from the real current state, so sign-in applies the right mode right away.
+            lastFound = Controller.Find();
+            rawConnected = stableConnected = lastFound != null;
+            Log.Write("started; controller " + (rawConnected ? "on: " + lastFound : "off") + ", mode " + settings.Mode);
+            LoadOverride();
+            tray.Icon = iconNormal;
+            tray.Visible = true;
+            Apply(true);
+
+            poll.Interval = 250;
+            poll.Tick += delegate { Tick(); };
+            poll.Start();
+
+            reloadDebounce.Interval = 400;
+            reloadDebounce.Tick += delegate { reloadDebounce.Stop(); ReloadSettings(); };
+            try
+            {
+                watcher = new FileSystemWatcher(Settings.Dir, "settings.ini");
+                watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName;
+                FileSystemEventHandler fh = delegate { try { invoker.BeginInvoke((MethodInvoker)delegate { reloadDebounce.Stop(); reloadDebounce.Start(); }); } catch { } };
+                watcher.Changed += fh; watcher.Created += fh;
+                watcher.Renamed += delegate { fh(null, null); }; // editors that save by replacing the file
+                watcher.EnableRaisingEvents = true;
+            }
+            catch (Exception ex) { Log.Write("settings watcher failed: " + ex.Message); }
+
+            // Let "LeanbackMode.exe --exit" (used by uninstall.ps1) close us cleanly.
+            try
+            {
+                exitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ExitEventName);
+                var waiter = new Thread(delegate()
+                {
+                    try
+                    {
+                        exitEvent.WaitOne();
+                        invoker.BeginInvoke((MethodInvoker)delegate { Log.Write("exit requested from the command line"); ExitApp(); });
+                    }
+                    catch { }
+                });
+                waiter.IsBackground = true;
+                waiter.Start();
+            }
+            catch (Exception ex) { Log.Write("exit listener failed: " + ex.Message); }
+        }
+
+        bool WantTv
+        {
+            get
+            {
+                if (string.Equals(settings.Mode, "TV", StringComparison.OrdinalIgnoreCase)) return true;
+                if (string.Equals(settings.Mode, "Normal", StringComparison.OrdinalIgnoreCase)) return false;
+                if (overrideTv.HasValue) return overrideTv.Value;
+                return stableConnected;
+            }
+        }
+
+        // Shortcut / menu toggle. In automatic mode this lasts until the controller next turns on or off
+        // (turning it on always ends in TV mode, turning it off in desktop mode).
+        // In "Always TV" / "Always desktop" mode it flips that setting instead.
+        void ToggleMode(string reason)
+        {
+            bool target = !WantTv;
+            if (string.Equals(settings.Mode, "TV", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(settings.Mode, "Normal", StringComparison.OrdinalIgnoreCase))
+            {
+                settings.Mode = target ? "TV" : "Normal";
+                try { settings.Save(); } catch (Exception ex) { Log.Write("save failed: " + ex.Message); }
+            }
+            else { overrideTv = target; SaveOverride(); }
+            Log.Write((target ? "TV mode" : "desktop mode") + " requested (" + reason + ")");
+            pendingReason = reason;
+            Apply(false);
+        }
+
+        // A shortcut switch survives restarts (sign-in, reinstall) until the controller turns on or off.
+        static string StatePath { get { return Path.Combine(Settings.Dir, "state.ini"); } }
+
+        void SaveOverride()
+        {
+            try
+            {
+                if (!overrideTv.HasValue) { if (File.Exists(StatePath)) File.Delete(StatePath); return; }
+                File.WriteAllText(StatePath, "OverrideTv=" + (overrideTv.Value ? "true" : "false") + Environment.NewLine +
+                                             "ControllerWas=" + (stableConnected ? "on" : "off") + Environment.NewLine);
+            }
+            catch (Exception ex) { Log.Write("couldn't save shortcut state: " + ex.Message); }
+        }
+
+        void LoadOverride()
+        {
+            try
+            {
+                if (!File.Exists(StatePath)) return;
+                string tv = null, was = null;
+                foreach (var line in File.ReadAllLines(StatePath))
+                {
+                    int eq = line.IndexOf('=');
+                    if (eq < 0) continue;
+                    string k = line.Substring(0, eq).Trim(), v = line.Substring(eq + 1).Trim();
+                    if (k == "OverrideTv") tv = v; else if (k == "ControllerWas") was = v;
+                }
+                if (tv != null && was == (stableConnected ? "on" : "off"))
+                {
+                    overrideTv = tv == "true";
+                    Log.Write("kept the shortcut switch to " + (overrideTv.Value ? "TV" : "desktop") + " mode from before the restart");
+                }
+                else { overrideTv = null; File.Delete(StatePath); } // controller changed while we were closed
+            }
+            catch (Exception ex) { Log.Write("couldn't read shortcut state: " + ex.Message); }
+        }
+
+        void RegisterHotkey()
+        {
+            if (hotkey.Register(settings.Hotkey)) Log.Write("shortcut " + settings.Hotkey + " ready");
+            else Log.Write("shortcut not available: " + hotkey.Error);
+            UpdateUi();
+        }
+
+        // Pause AntiMicroX while a game is in front; bring it back shortly after you leave the game.
+        void GameTick()
+        {
+            if (!settings.PauseMouseInGames)
+            {
+                if (mousePausedByUs) ResumeMouse("pausing in games turned off");
+                return;
+            }
+            string game = null;
+            try { game = games.GameInFront(); } catch { }
+            bool inGame = game != null;
+            if (inGame != gameRaw) { gameRaw = inGame; gameRawSince = DateTime.Now; }
+            double needed = inGame ? 0.5 : settings.ResumeAfterGameSeconds;
+            if ((DateTime.Now - gameRawSince).TotalSeconds < needed) return;
+
+            if (inGame && !mousePausedByUs)
+            {
+                if (!MouseMapper.IsRunning()) return; // you quit it yourself: leave it off
+                MouseMapper.Stop();
+                mousePausedByUs = true;
+                pausedFor = game;
+                Log.Write("controller mouse paused: " + game + " is in front");
+                UpdateUi();
+            }
+            else if (!inGame && mousePausedByUs)
+            {
+                ResumeMouse("left " + pausedFor);
+            }
+        }
+
+        void ResumeMouse(string why)
+        {
+            string err = MouseMapper.Start(settings);
+            mousePausedByUs = false;
+            Log.Write("controller mouse resumed (" + why + ")" + (err != null ? "; failed to start AntiMicroX: " + err : ""));
+            UpdateUi();
+        }
+
+        string lastFound;
+
+        void Tick()
+        {
+            GameTick();
+            string found = Controller.Find();
+            bool now = found != null;
+            if (now) lastFound = found;
+            if (now != rawConnected) { rawConnected = now; rawSince = DateTime.Now; }
+            double needed = rawConnected ? settings.SwitchOnDelaySeconds : settings.SwitchOffDelaySeconds;
+            if (rawConnected != stableConnected && (DateTime.Now - rawSince).TotalSeconds >= needed)
+            {
+                stableConnected = rawConnected;
+                overrideTv = null; // the controller takes over again after a shortcut switch
+                SaveOverride();
+                Log.Write(stableConnected ? "controller turned on: " + lastFound : "controller turned off");
+                pendingReason = "controller";
+                Apply(false);
+            }
+        }
+
+        void Apply(bool force)
+        {
+            if (busy) return; // re-checked when the current transition finishes
+            bool tv = WantTv;
+            if (!force && appliedTv.HasValue && appliedTv.Value == tv) { UpdateUi(); return; }
+
+            int scale = tv ? settings.TvScale : settings.NormalScale;
+            int pointer = tv ? settings.TvPointerSize : settings.NormalPointerSize;
+            bool needed = DisplayScale.WouldChange(scale) || PointerSize.Get() != PointerSize.Clamp(pointer);
+            string reason = pendingReason ?? "controller";
+            pendingReason = null;
+
+            if (!needed) { appliedTv = tv; UpdateUi(); return; }
+
+            Transition.Work work = MakeWork(scale, pointer);
+
+            if (!settings.SmoothTransition)
+            {
+                Done(tv, work());
+                return;
+            }
+
+            busy = true;
+            try
+            {
+                var t = new Transition(tv, reason, work, settings);
+                t.Finished += delegate { busy = false; Done(tv, t.Error); };
+                t.Start();
+            }
+            catch (Exception ex)
+            {
+                // If the overlay can't be shown for some reason, still switch.
+                busy = false;
+                Log.Write("transition failed, switching directly: " + ex.Message);
+                Done(tv, work());
+            }
+        }
+
+        // Scaling and pointer size change at the same time; the slow part is Windows rescaling every app.
+        static Transition.Work MakeWork(int scale, int pointer)
+        {
+            return delegate
+            {
+                string pointerErr = null;
+                var pt = new Thread(delegate() { pointerErr = PointerSize.Set(pointer); });
+                pt.IsBackground = true;
+                pt.Start();
+                var sw = Stopwatch.StartNew();
+                string scaleErr = DisplayScale.Set(scale);
+                long scaleMs = sw.ElapsedMilliseconds;
+                pt.Join(5000);
+                Log.Write("switch: scaling took " + scaleMs + " ms, scaling + pointer " + sw.ElapsedMilliseconds + " ms");
+                if (scaleErr != null && pointerErr != null) return scaleErr + "; " + pointerErr;
+                return scaleErr ?? pointerErr;
+            };
+        }
+
+        void Done(bool tv, string err)
+        {
+            appliedTv = tv;
+            Log.Write((tv ? "TV mode" : "normal mode") + " applied" + (err != null ? "; " + err : ""));
+            UpdateUi();
+            if (exitRequested) { ExitApp(); return; }
+            if (WantTv != tv) Apply(false); // controller changed again mid-transition
+        }
+
+        void Preview()
+        {
+            if (busy) return;
+            busy = true;
+            bool tv = appliedTv.HasValue && appliedTv.Value;
+            var t = new Transition(tv, "preview", delegate { Thread.Sleep(1200); return null; }, settings);
+            t.Finished += delegate { busy = false; if (exitRequested) ExitApp(); else Apply(false); };
+            t.Start();
+        }
+
+        void SetMode(string mode)
+        {
+            settings.Mode = mode;
+            overrideTv = null;
+            SaveOverride();
+            pendingReason = "manual";
+            try { settings.Save(); } catch (Exception ex) { Log.Write("save failed: " + ex.Message); }
+            Apply(false);
+        }
+
+        void ReloadSettings()
+        {
+            try
+            {
+                settings = Settings.Load();
+                games.Configure(settings);
+                Log.Write("settings reloaded");
+                if (!string.Equals(hotkey.Current, settings.Hotkey, StringComparison.OrdinalIgnoreCase)) RegisterHotkey();
+                Apply(true); // re-apply current mode with the new numbers
+            }
+            catch (Exception ex) { Log.Write("reload failed: " + ex.Message); }
+        }
+
+        void UpdateUi()
+        {
+            bool tv = appliedTv.HasValue && appliedTv.Value;
+            string why = !string.Equals(settings.Mode, "Auto", StringComparison.OrdinalIgnoreCase) ? "always"
+                : overrideTv.HasValue ? "shortcut"
+                : (stableConnected ? "controller on" : "controller off");
+            string text = (tv ? "TV mode" : "Desktop mode") + " (" + why + ")";
+            tray.Icon = tv ? iconTv : iconNormal;
+            tray.Text = "Leanback Mode: " + text;
+            statusItem.Text = text;
+            if (toggleItem != null && hotkey != null)
+                toggleItem.ShortcutKeyDisplayString = hotkey.Current ?? "(shortcut unavailable)";
+            mouseStatusItem.Text = mousePausedByUs ? "Controller mouse paused (" + pausedFor + ")"
+                : MouseMapper.IsRunning() ? "Controller mouse on" : "Controller mouse off (AntiMicroX not running)";
+            pauseInGamesItem.Checked = settings.PauseMouseInGames;
+            autoItem.Checked = string.Equals(settings.Mode, "Auto", StringComparison.OrdinalIgnoreCase);
+            tvItem.Checked = string.Equals(settings.Mode, "TV", StringComparison.OrdinalIgnoreCase);
+            normalItem.Checked = string.Equals(settings.Mode, "Normal", StringComparison.OrdinalIgnoreCase);
+        }
+
+        void ExitApp()
+        {
+            if (busy) { exitRequested = true; return; } // finish the current transition first
+            poll.Stop();
+            if (appliedTv.HasValue && appliedTv.Value)
+            {
+                exitRequested = true;
+                busy = true; // block other switches while we restore
+                var t = new Transition(false, "manual", MakeWork(settings.NormalScale, settings.NormalPointerSize), settings);
+                t.Finished += delegate { Log.Write("exit: restored normal mode"); Quit(); };
+                try { t.Start(); }
+                catch { DisplayScale.Set(settings.NormalScale); PointerSize.Set(settings.NormalPointerSize); Quit(); }
+                return;
+            }
+            Log.Write("exit");
+            Quit();
+        }
+
+        void Quit()
+        {
+            if (mousePausedByUs) ResumeMouse("Leanback Mode closing"); // never leave the controller mouse off
+            if (hotkey != null) hotkey.Dispose();
+            tray.Visible = false;
+            tray.Dispose();
+            ExitThread();
+        }
+
+        // A small TV glyph: filled blue screen when TV mode is on, grey outline when off.
+        static Icon MakeIcon(bool on)
+        {
+            var bmp = new Bitmap(32, 32);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.Clear(Color.Transparent);
+                var screen = new Rectangle(2, 5, 28, 19);
+                using (var path = RoundRect(screen, 4))
+                {
+                    if (on)
+                    {
+                        using (var fill = new SolidBrush(Color.FromArgb(255, 59, 130, 246))) g.FillPath(fill, path);
+                        using (var pen = new Pen(Color.FromArgb(255, 30, 64, 175), 2f)) g.DrawPath(pen, path);
+                    }
+                    else
+                    {
+                        using (var pen = new Pen(Color.FromArgb(255, 150, 150, 150), 2.5f)) g.DrawPath(pen, path);
+                    }
+                }
+                using (var stand = new Pen(on ? Color.FromArgb(255, 30, 64, 175) : Color.FromArgb(255, 150, 150, 150), 2.5f))
+                {
+                    g.DrawLine(stand, 16, 25, 16, 28);
+                    g.DrawLine(stand, 10, 29, 22, 29);
+                }
+            }
+            return Icon.FromHandle(bmp.GetHicon());
+        }
+
+        static GraphicsPath RoundRect(Rectangle r, int radius)
+        {
+            var p = new GraphicsPath();
+            int d = radius * 2;
+            p.AddArc(r.X, r.Y, d, d, 180, 90);
+            p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
+        }
+    }
+}
