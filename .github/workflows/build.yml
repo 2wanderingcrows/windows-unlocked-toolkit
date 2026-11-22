@@ -1,0 +1,74 @@
+name: Build installer and website
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build installer and website
+        run: python scripts/build.py
+
+      - name: Check every PowerShell file parses
+        shell: pwsh
+        run: |
+          $bad = 0
+          $files = Get-ChildItem -Path tools, dist -Recurse -Filter *.ps1
+          foreach ($f in $files) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { $bad++; $errors | ForEach-Object { Write-Host "::error file=$($f.FullName)::$($_.Message)" } }
+            else { Write-Host "OK  $($f.FullName)" }
+          }
+          # The .cmd runs the part of itself after the marker; check that part too.
+          $t = [IO.File]::ReadAllText("dist/WindowsUnlockedToolkit.cmd")
+          $ps = $t.Substring($t.IndexOf('##WUT-POWERSHELL-BELOW##'))
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseInput($ps, [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $bad++; $errors | ForEach-Object { Write-Host "::error::cmd payload: $($_.Message)" } }
+          else { Write-Host "OK  dist/WindowsUnlockedToolkit.cmd (PowerShell part)" }
+          if ($bad) { exit 1 }
+
+      - name: Keep the built files with this run (for testing a pull request)
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-unlocked-toolkit
+          path: dist/
+
+      - name: Package the website
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

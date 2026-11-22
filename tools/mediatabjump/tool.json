@@ -1,0 +1,9 @@
+{
+  "id": "mediatabjump",
+  "name": "Media Tab Jump",
+  "version": "7.1",
+  "summary": "Click the now-playing card in the Windows volume flyout to jump straight to the browser tab that is playing it.",
+  "install": "Install.ps1",
+  "uninstall": "Uninstall.ps1",
+  "admin": false
+}
