@@ -3,76 +3,320 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Windows Unlocked Toolkit</title>
-<meta name="description" content="Small, open-source tools that make Windows nicer to use. Install them all from one file.">
+<title>Windows Unlocked Toolkit: the little Windows fixes you've been missing</title>
+<meta name="description" content="Free, open-source tools that fix the small annoyances in Windows. Couch mode for your controller, one-click jump to the tab that's playing, and more. Install them all from one file.">
+<meta property="og:title" content="Windows Unlocked Toolkit">
+<meta property="og:description" content="Free, open-source tools that fix the small annoyances in Windows. Install them all from one file.">
+<meta name="theme-color" content="#3b6cf6">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <style>
-  :root { --bg:#f7f7f8; --card:#fff; --text:#1d1d1f; --muted:#5f6368; --accent:#0a64d8; --border:#e2e3e6; --code:#eef0f3; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#141416; --card:#1e1f22; --text:#ececef; --muted:#a2a6ad; --accent:#5aa2ff; --border:#2e3035; --code:#2a2c31; }
+  :root {
+    --accent:#3b6cf6; --accent2:#7a5cff;
+    --bg:#fbfbfd; --bg2:#f2f3f7; --card:#ffffff; --text:#1d1d1f; --muted:#6e6e73; --border:#e3e4e8; --code:#f0f1f5;
+    --radius:22px; --shadow:0 1px 2px rgba(16,24,40,.04), 0 12px 32px -12px rgba(16,24,40,.14);
   }
-  * { box-sizing: border-box; }
-  body { margin:0; font:16px/1.55 "Segoe UI", system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); }
-  main { max-width:820px; margin:0 auto; padding:48px 20px 64px; }
-  h1 { font-size:2.1rem; margin:0 0 6px; letter-spacing:-0.01em; }
-  .lede { color:var(--muted); margin:0 0 36px; font-size:1.08rem; }
-  h2 { font-size:1.2rem; margin:40px 0 14px; }
-  .options { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:680px) { .options { grid-template-columns:1fr; } }
-  .option { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
-  .option h3 { margin:0 0 8px; font-size:1.05rem; }
-  .option p { margin:0 0 14px; color:var(--muted); font-size:0.95rem; }
-  .btn { display:inline-block; background:var(--accent); color:#fff; text-decoration:none; padding:9px 16px; border-radius:8px; font-weight:600; font-size:0.95rem; border:0; cursor:pointer; }
-  .btn.secondary { background:transparent; color:var(--accent); border:1px solid var(--accent); }
-  .cmdline { display:flex; gap:8px; margin-top:14px; }
-  code { font-family:Consolas, "Cascadia Mono", monospace; font-size:0.86rem; }
-  .cmdline code { flex:1; background:var(--code); padding:9px 10px; border-radius:8px; overflow-x:auto; white-space:nowrap; }
-  .cmdline button { background:var(--code); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:0 12px; cursor:pointer; font:inherit; font-size:0.85rem; }
-  ul.tools { list-style:none; padding:0; margin:0; display:grid; gap:12px; }
-  .tool { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px; }
-  .tool h3 { margin:0 0 4px; font-size:1.02rem; }
-  .tool p { margin:0 0 8px; color:var(--muted); font-size:0.95rem; }
-  .tool a, footer a, .note a { color:var(--accent); }
-  .ver { color:var(--muted); font-weight:400; font-size:0.85rem; }
-  .note { color:var(--muted); font-size:0.9rem; }
-  footer { margin-top:48px; color:var(--muted); font-size:0.85rem; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0d0e12; --bg2:#15161c; --card:#1a1b22; --text:#f2f2f5; --muted:#a1a1aa; --border:#2a2b33; --code:#22232b;
+            --shadow:0 1px 2px rgba(0,0,0,.3), 0 16px 40px -16px rgba(0,0,0,.6); }
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; font:17px/1.55 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+         background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  .wrap { max-width:1120px; margin:0 auto; padding:0 24px; }
+  h1, h2, h3 { font-family:"Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif; letter-spacing:-0.02em; margin:0; }
+  code { font-family:"Cascadia Mono", Consolas, ui-monospace, monospace; font-size:.86em; }
+
+  /* nav */
+  nav { position:sticky; top:0; z-index:10; backdrop-filter:saturate(180%) blur(18px); -webkit-backdrop-filter:saturate(180%) blur(18px);
+        background:color-mix(in srgb, var(--bg) 78%, transparent); border-bottom:1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+  nav .wrap { display:flex; align-items:center; gap:24px; height:60px; }
+  .brand { white-space:nowrap; display:flex; align-items:center; gap:10px; font-weight:700; color:var(--text); }
+  .brand:hover { text-decoration:none; }
+  .brand img { width:28px; height:28px; }
+  nav .links { display:flex; gap:22px; margin-left:auto; font-size:.93rem; }
+  nav .links a { color:var(--muted); }
+  nav .links a:hover { color:var(--text); text-decoration:none; }
+  @media (max-width:720px) { nav .links a.hide-sm { display:none; } }
+
+  /* buttons */
+  .btn { white-space:nowrap; display:inline-flex; align-items:center; gap:8px; padding:12px 22px; border-radius:999px; font-weight:600; font-size:1rem;
+         background:var(--accent); color:#fff; border:0; cursor:pointer; transition:transform .15s ease, box-shadow .15s ease, filter .15s; }
+  .btn:hover { text-decoration:none; transform:translateY(-1px); box-shadow:0 8px 24px -8px var(--accent); filter:brightness(1.05); }
+  .btn.ghost { background:transparent; color:var(--accent); box-shadow:inset 0 0 0 1.5px var(--accent); }
+  .btn.ghost:hover { box-shadow:inset 0 0 0 1.5px var(--accent), 0 8px 24px -12px var(--accent); }
+
+  /* hero */
+  .hero { position:relative; overflow:hidden; padding:84px 0 40px; text-align:center; }
+  .hero::before { content:""; position:absolute; inset:-30% -10% auto; height:620px; z-index:-1;
+                  background:radial-gradient(40% 50% at 30% 40%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 70%),
+                             radial-gradient(35% 45% at 72% 30%, color-mix(in srgb, var(--accent2) 24%, transparent), transparent 70%); }
+  .kicker { display:inline-flex; gap:8px; align-items:center; padding:6px 14px; border-radius:999px; background:var(--card);
+            box-shadow:var(--shadow); font-size:.88rem; color:var(--muted); margin-bottom:22px; }
+  .kicker b { color:var(--accent); }
+  .hero h1 { font-size:clamp(2.5rem, 6.4vw, 4.6rem); line-height:1.03; font-weight:750; }
+  .grad { background:linear-gradient(100deg, var(--accent), var(--accent2) 60%, #ff6b9d); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero .lede { max-width:640px; margin:22px auto 30px; font-size:1.22rem; color:var(--muted); }
+  .cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+  .hero .fine { margin-top:14px; font-size:.86rem; color:var(--muted); }
+  .hero-shot { margin:52px auto 0; max-width:1040px; border-radius:28px; overflow:hidden; box-shadow:0 40px 80px -30px rgba(30,40,90,.5); position:relative; }
+  .hero-shot img { display:block; width:100%; height:auto; }
+
+  /* section heads */
+  section { padding:72px 0; }
+  .head { text-align:center; max-width:680px; margin:0 auto 44px; }
+  .head h2 { font-size:clamp(1.9rem, 4vw, 2.8rem); line-height:1.1; }
+  .head p { color:var(--muted); font-size:1.1rem; margin:14px 0 0; }
+
+  /* promises */
+  .promises { display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; }
+  @media (max-width:900px) { .promises { grid-template-columns:1fr 1fr; } }
+  @media (max-width:520px) { .promises { grid-template-columns:1fr; } }
+  .promise { background:var(--card); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow); }
+  .promise .ico { width:44px; height:44px; border-radius:13px; display:grid; place-items:center; margin-bottom:14px;
+                  background:color-mix(in srgb, var(--accent) 14%, transparent); color:var(--accent); }
+  .promise h3 { font-size:1.08rem; margin-bottom:6px; }
+  .promise p { margin:0; color:var(--muted); font-size:.95rem; }
+
+  /* tools */
+  .tools { display:grid; gap:28px; }
+  .tool.feature { --tool:var(--accent); display:grid; grid-template-columns:1fr 1.25fr; gap:44px; align-items:center;
+                  background:var(--card); border-radius:32px; padding:44px; box-shadow:var(--shadow); }
+  .tool.feature.flip { grid-template-columns:1.25fr 1fr; }
+  .tool.feature.flip .copy { order:2; }
+  @media (max-width:900px) { .tool.feature, .tool.feature.flip { grid-template-columns:1fr; padding:28px; gap:28px; } .tool.feature.flip .copy { order:0; } }
+  .eyebrow { margin:0 0 10px; font-weight:700; font-size:.9rem; letter-spacing:.06em; text-transform:uppercase; color:var(--tool); }
+  .ver { color:var(--muted); font-weight:500; letter-spacing:0; text-transform:none; font-size:.85em; }
+  .tool h3 { font-size:clamp(1.6rem, 3vw, 2.1rem); line-height:1.12; }
+  .problem { color:var(--muted); margin:14px 0 18px; }
+  ul.checks { list-style:none; margin:0 0 22px; padding:0; display:grid; gap:9px; }
+  ul.checks li { position:relative; padding-left:30px; font-size:.97rem; }
+  ul.checks li::before { content:""; position:absolute; left:0; top:3px; width:20px; height:20px; border-radius:50%;
+                         background:color-mix(in srgb, var(--tool) 16%, transparent); }
+  ul.checks li::after { content:""; position:absolute; left:6.5px; top:7.5px; width:5px; height:9px; border:solid var(--tool);
+                        border-width:0 2.2px 2.2px 0; transform:rotate(45deg); }
+  .meta { display:flex; gap:16px; align-items:center; flex-wrap:wrap; font-size:.93rem; }
+  .pill { padding:4px 12px; border-radius:999px; background:var(--bg2); color:var(--muted); font-size:.85rem; }
+  .more { font-weight:600; color:var(--tool); }
+  .shot { margin:0; position:relative; border-radius:22px; overflow:hidden; box-shadow:0 24px 48px -24px rgba(20,20,60,.45);
+          transition:transform .35s cubic-bezier(.2,.8,.2,1); }
+  .shot:hover { transform:translateY(-4px) rotate(-.4deg); }
+  .shot img { display:block; width:100%; height:auto; }
+  .mock { position:absolute; top:12px; right:12px; padding:3px 10px; border-radius:999px; font-size:.72rem; font-weight:600;
+          background:rgba(0,0,0,.45); color:#fff; backdrop-filter:blur(6px); }
+  .tool.plain { background:var(--card); border-radius:var(--radius); padding:24px 28px; box-shadow:var(--shadow); }
+  .tool.plain h3 { font-size:1.25rem; }
+  .tool.plain p { color:var(--muted); }
+
+  /* upcoming */
+  .soon { list-style:none; padding:0; margin:28px 0 0; display:flex; flex-wrap:wrap; gap:12px; justify-content:center; }
+  .soon li { display:flex; flex-direction:column; padding:14px 20px; border-radius:18px; border:1.5px dashed var(--border); min-width:210px; }
+  .soon b { font-size:.98rem; }
+  .soon span { color:var(--muted); font-size:.85rem; }
+
+  /* install */
+  .install { background:var(--bg2); }
+  .steps { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; counter-reset:s; }
+  @media (max-width:820px) { .steps { grid-template-columns:1fr; } }
+  .step { background:var(--card); border-radius:var(--radius); padding:26px; box-shadow:var(--shadow); counter-increment:s; }
+  .step::before { content:counter(s); display:grid; place-items:center; width:34px; height:34px; border-radius:50%; margin-bottom:14px;
+                  background:linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; font-weight:700; }
+  .step h3 { font-size:1.1rem; margin-bottom:6px; }
+  .step p { margin:0; color:var(--muted); font-size:.95rem; }
+  .alt { margin-top:22px; display:grid; grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr); gap:16px; }
+  @media (max-width:820px) { .alt { grid-template-columns:1fr; } }
+  .alt > div { background:var(--card); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow); }
+  .alt h3 { font-size:1.05rem; margin-bottom:6px; }
+  .alt p { margin:0 0 14px; color:var(--muted); font-size:.95rem; }
+  .cmdline { display:flex; gap:8px; }
+  .cmdline code { flex:1; background:var(--code); padding:11px 14px; border-radius:12px; overflow-x:auto; white-space:nowrap; }
+  .cmdline button { background:var(--text); color:var(--bg); border:0; border-radius:12px; padding:0 16px; cursor:pointer; font:inherit; font-size:.88rem; font-weight:600; }
+  .note { color:var(--muted); font-size:.9rem; max-width:760px; margin:26px auto 0; text-align:center; }
+
+  /* faq */
+  .faq { max-width:760px; margin:0 auto; }
+  details { background:var(--card); border-radius:18px; padding:18px 22px; margin-bottom:10px; box-shadow:var(--shadow); }
+  summary { cursor:pointer; font-weight:650; list-style:none; display:flex; justify-content:space-between; gap:16px; }
+  summary::-webkit-details-marker { display:none; }
+  summary::after { content:"+"; color:var(--accent); font-size:1.3rem; line-height:1; transition:transform .2s; }
+  details[open] summary::after { transform:rotate(45deg); }
+  details p { color:var(--muted); margin:12px 0 0; }
+
+  /* theme picker (just for fun) */
+  .picker { display:flex; gap:6px; align-items:center; }
+  .picker button { width:18px; height:18px; border-radius:50%; border:0; cursor:pointer; padding:0; outline-offset:2px; transition:transform .15s; }
+  .picker button:hover { transform:scale(1.2); }
+  .picker button[aria-pressed="true"] { outline:2px solid var(--text); }
+
+  footer { padding:48px 0 64px; color:var(--muted); font-size:.88rem; text-align:center; }
+  footer .made { font-size:1rem; color:var(--text); margin-bottom:6px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; scroll-behavior:auto !important; } }
 </style>
 </head>
 <body>
-<main>
-  <h1>Windows Unlocked Toolkit</h1>
-  <p class="lede">Small, open-source tools that make Windows nicer to use. Pick the ones you want from one installer, or read the code first.</p>
 
-  <div class="options">
-    <section class="option">
-      <h3>Install with one file</h3>
-      <p>Download and double-click it. A menu lets you choose which tools to install. You can run it again later to uninstall.</p>
-      <a class="btn" href="WindowsUnlockedToolkit.cmd" download>Download installer</a>
-      <p class="note" style="margin:14px 0 0">Or paste this into PowerShell:</p>
-      <div class="cmdline"><code id="oneliner">irm {{SITE_URL}}/install.ps1 | iex</code><button type="button" onclick="copyCmd(this)">Copy</button></div>
-    </section>
-    <section class="option">
-      <h3>Browse the code</h3>
-      <p>Every tool is plain, readable source in a public GitHub repo. Install a single tool from its own folder, or open an issue.</p>
-      <a class="btn secondary" href="{{REPO_URL}}">View on GitHub</a>
-    </section>
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/logo.svg" alt="">Windows Unlocked</a>
+    <div class="links">
+      <a class="hide-sm" href="#tools">Tools</a>
+      <a class="hide-sm" href="#install">Install</a>
+      <a class="hide-sm" href="#faq">FAQ</a>
+      <a href="{{REPO_URL}}">GitHub</a>
+    </div>
+    <div class="picker" role="group" aria-label="Pick a color for this page" title="Make it yours: pick a color">
+      <button type="button" data-a="#3b6cf6" data-b="#7a5cff" style="background:#3b6cf6" aria-label="Blue"></button>
+      <button type="button" data-a="#f2552c" data-b="#ff2d87" style="background:#f2552c" aria-label="Sunset"></button>
+      <button type="button" data-a="#12a66a" data-b="#14b8c4" style="background:#12a66a" aria-label="Mint"></button>
+      <button type="button" data-a="#9b5cff" data-b="#ff6bd5" style="background:#9b5cff" aria-label="Grape"></button>
+    </div>
   </div>
+</nav>
 
-  <h2>What's included</h2>
-  <ul class="tools">
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="kicker"><b>Free</b> · Open source · Made for Windows</div>
+    <h1>The little Windows fixes<br><span class="grad">you've been missing.</span></h1>
+    <p class="lede">Windows Unlocked is a growing set of tiny, friendly tools that smooth out the everyday annoyances. Pick the ones you like, skip the rest, and remove any of them in a click.</p>
+    <div class="cta">
+      <a class="btn" href="WindowsUnlockedToolkit.cmd" download>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+        Download the toolkit
+      </a>
+      <a class="btn ghost" href="#tools">See what's inside</a>
+    </div>
+    <p class="fine">One small file · {{TOOL_COUNT}} tools and counting · no account, no ads, no tracking</p>
+    <!-- MOCKUP: the hero image is concept art of the coming tray app. Replace site/assets/hero.svg with a real screenshot when it ships. -->
+    <div class="hero-shot"><img src="assets/hero.svg" alt="A Windows desktop with the Windows Unlocked tray panel open, showing a section for each tool with toggles, a pointer speed slider and glow colors" width="1200" height="680"></div>
+  </div>
+</header>
+
+<section id="why">
+  <div class="wrap">
+    <div class="head">
+      <h2>Small tools. Big "oh, nice."</h2>
+      <p>Each one does a single job, does it well, and gets out of your way. No bloat, no subscriptions, no "upgrade to Pro".</p>
+    </div>
+    <div class="promises">
+      <div class="promise">
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></div>
+        <h3>Private by design</h3>
+        <p>The tools never go online and never read what you type. Everything stays on your PC.</p>
+      </div>
+      <div class="promise">
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l-6 6 6 6M16 6l6 6-6 6"/></svg></div>
+        <h3>Readable, not mysterious</h3>
+        <p>No hidden programs. Each tool is plain source code, built on your PC by the compiler that ships with Windows.</p>
+      </div>
+      <div class="promise">
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg></div>
+        <h3>Undo anytime</h3>
+        <p>Every tool comes with its own uninstaller that puts things back the way they were.</p>
+      </div>
+      <div class="promise">
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></div>
+        <h3>Light as a feather</h3>
+        <p>They sit quietly in the background, start with Windows, and don't need admin rights unless they say so.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tools">
+  <div class="wrap">
+    <div class="head">
+      <h2>Meet the toolkit.</h2>
+      <p>Install all of them, or just the one you came for.</p>
+    </div>
+    <div class="tools">
 {{TOOLS}}
-  </ul>
+    </div>
+    <div class="head" style="margin:64px auto 0">
+      <h2 style="font-size:1.6rem">On the workbench</h2>
+      <p>More tools are being polished and will show up here, and in the same installer, when they're ready.</p>
+    </div>
+    <ul class="soon">
+{{UPCOMING}}
+    </ul>
+  </div>
+</section>
 
-  <p class="note" style="margin-top:24px">Windows may warn that the downloaded file is from an unknown publisher. Choose <b>More info</b>, then <b>Run anyway</b>. The installer contains each tool's full source. The only download is AntiMicroX, through Windows' own <code>winget</code>, if you pick Leanback Mode and don't have it yet. Some tools are built on your PC with the C# compiler that comes with Windows, so antivirus or Smart App Control may ask about them the first time.</p>
+<section class="install" id="install">
+  <div class="wrap">
+    <div class="head">
+      <h2>Up and running in a minute.</h2>
+      <p>One file holds every tool. Run it, tick what you want, done.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><h3>Download</h3><p><a href="WindowsUnlockedToolkit.cmd" download>WindowsUnlockedToolkit.cmd</a> is one small file with every tool inside.</p></div>
+      <div class="step"><h3>Double-click it</h3><p>If Windows says it's from an unknown publisher, choose <b>More info</b>, then <b>Run anyway</b>.</p></div>
+      <div class="step"><h3>Pick your tools</h3><p>Choose from the menu. Run the file again any time and press <b>U</b> to uninstall one.</p></div>
+    </div>
+    <div class="alt">
+      <div>
+        <h3>Prefer the terminal?</h3>
+        <p>Paste this into PowerShell for the same menu:</p>
+        <div class="cmdline"><code id="oneliner">irm {{SITE_URL}}/install.ps1 | iex</code><button type="button" onclick="copyCmd(this)">Copy</button></div>
+      </div>
+      <div>
+        <h3>Read it first</h3>
+        <p>Every line is on GitHub. Each tool also installs on its own from its folder.</p>
+        <a class="btn ghost" href="{{REPO_URL}}">Browse the code</a>
+      </div>
+    </div>
+    <p class="note">The installer contains each tool's full source. The only download is AntiMicroX, through Windows' own <code>winget</code>, if you pick Leanback Mode and don't have it yet. Some tools are built on your PC with the C# compiler that comes with Windows, so antivirus or Smart App Control may ask about them the first time.</p>
+  </div>
+</section>
 
-  <footer>Build {{BUILD}} · MIT licensed · <a href="{{REPO_URL}}">Source on GitHub</a></footer>
-</main>
+<section id="faq">
+  <div class="wrap">
+    <div class="head"><h2>Questions, answered.</h2></div>
+    <div class="faq">
+      <details><summary>Is it safe?</summary><p>Everything is open source, so you (or a techy friend) can read exactly what each tool does. Nothing is pre-compiled: the tools are built from that source on your own PC. They don't connect to the internet, and they only use standard Windows features, like the accessibility tools screen readers rely on.</p></details>
+      <details><summary>Why does Windows warn me about the file?</summary><p>Windows shows that warning for any file that isn't signed with a paid certificate. This is a free hobby project, so it isn't. Choose <b>More info</b>, then <b>Run anyway</b>, or read the source first if you'd rather.</p></details>
+      <details><summary>How do I remove a tool?</summary><p>Run the installer again and press <b>U</b>, or open the tool's folder and double-click <code>Uninstall.cmd</code>. Settings it changed (like display scaling) go back to how they were.</p></details>
+      <details><summary>Will it slow my PC down?</summary><p>No. The tools are small background helpers that mostly sleep until you need them. You can see and pause them in Task Manager under Startup apps.</p></details>
+      <details><summary>Which Windows versions work?</summary><p>They're made on Windows 11. They only need Windows PowerShell 5.1 and the C# compiler that come with Windows, so Windows 10 should work too. If it doesn't, please open an issue.</p></details>
+      <details><summary>Can I suggest a tool or report a bug?</summary><p>Yes please! <a href="{{REPO_URL}}/issues">Open an issue on GitHub</a> with your idea or what went wrong. Each tool keeps a small log in its folder that helps track problems down.</p></details>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p class="made">Made with care (and a lot of help from Claude).</p>
+    <p>MIT licensed · Build {{BUILD}} · <a href="{{REPO_URL}}">Source on GitHub</a></p>
+  </div>
+</footer>
+
 <script>
 function copyCmd(btn) {
   navigator.clipboard.writeText(document.getElementById('oneliner').textContent).then(function () {
-    btn.textContent = 'Copied';
+    btn.textContent = 'Copied!';
     setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
   });
 }
+(function () {
+  var root = document.documentElement, buttons = document.querySelectorAll('.picker button');
+  function apply(btn) {
+    root.style.setProperty('--accent', btn.dataset.a);
+    root.style.setProperty('--accent2', btn.dataset.b);
+    buttons.forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('wut-accent'); } catch (e) {}
+  buttons.forEach(function (b) {
+    if (b.dataset.a === saved) apply(b);
+    b.addEventListener('click', function () {
+      apply(b);
+      try { localStorage.setItem('wut-accent', b.dataset.a); } catch (e) {}
+    });
+  });
+  if (!saved) apply(buttons[0]);
+})();
 </script>
 </body>
 </html>

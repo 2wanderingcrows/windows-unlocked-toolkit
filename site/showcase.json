@@ -1,0 +1,54 @@
+{
+  "_about": "Marketing copy for the website, keyed by tool id. Optional: a tool without an entry still shows up with its tool.json summary. Images live in site/assets/. Set mockup to false once the image is a real screenshot.",
+  "tools": {
+    "leanback": {
+      "tagline": "Your PC, now a couch console.",
+      "problem": "Using a PC on the TV is clumsy: tiny text, a pointer you can't find, and a keyboard you don't want on your lap. Leanback Mode notices when you pick up a controller and rearranges Windows for the couch.",
+      "bullets": [
+        "Switches to Leanback mode the moment your controller turns on, and back to desktop mode when you switch it off",
+        "Controller dozed off mid-movie? You stay in Leanback mode until you turn it off yourself",
+        "Bigger text and a pointer you can actually see from across the room",
+        "Sticks move and scroll, buttons click, go back and open Start",
+        "Steps aside on its own when you launch a game",
+        "Works with Xbox, PlayStation, Switch Pro, 8BitDo and generic Bluetooth or 2.4 GHz pads"
+      ],
+      "image": "assets/leanback.svg",
+      "alt": "A TV showing large, couch-friendly Windows tiles and a big pointer, with a game controller in front of it",
+      "mockup": true,
+      "accent": "#5b5bff"
+    },
+    "mediatabjump": {
+      "tagline": "Who's making that noise? Found it.",
+      "problem": "Thirty tabs open and something is playing. Windows shows you what is playing, but not where. Media Tab Jump makes the player in the volume flyout a shortcut straight to the right tab.",
+      "bullets": [
+        "Click the now-playing card and land on the exact tab, even in another window",
+        "Works with Edge, Chrome, Brave, Firefox, Opera and Vivaldi",
+        "A soft, color-shifting glow tells you the card is clickable",
+        "Play, pause and skip buttons keep working like always",
+        "No browser extension, nothing to sign in to"
+      ],
+      "image": "assets/mediatabjump.svg",
+      "alt": "The Windows volume flyout with a glowing now-playing card, and an arrow to the browser tab that is playing",
+      "mockup": true,
+      "accent": "#f2552c"
+    }
+  },
+  "upcoming": [
+    {
+      "name": "Toolkit tray app",
+      "note": "One tray icon with a settings panel for every tool"
+    },
+    {
+      "name": "Window Tab Organizer",
+      "note": "For anyone with way too many windows open"
+    },
+    {
+      "name": "Claude AutoZoom",
+      "note": "Claude, always at a comfortable size"
+    },
+    {
+      "name": "Startup Minimizer",
+      "note": "Sign in to a calm desktop, not a pile of windows"
+    }
+  ]
+}
