@@ -1151,7 +1151,14 @@ namespace UnlockedToolkit
             set { int v = (int)(Math.Round(value / 25.0) * 25); Put("TvScale", v.ToString(CultureInfo.InvariantCulture)); }
         }
         public string ScaleText { get { return TvScale.ToString("0", CultureInfo.InvariantCulture) + "%"; } }
-        public string ScaleHint { get { return "Desktop mode uses " + Ini.Num(cfg, "NormalScale", 100).ToString("0", CultureInfo.InvariantCulture) + "%."; } }
+        public string ScaleHint { get { return "Windows offers steps of 25%."; } }
+
+        public double DeskScale
+        {
+            get { return Ini.Num(cfg, "NormalScale", 100); }
+            set { int v = (int)(Math.Round(value / 25.0) * 25); Put("NormalScale", v.ToString(CultureInfo.InvariantCulture)); }
+        }
+        public string DeskScaleText { get { return DeskScale.ToString("0", CultureInfo.InvariantCulture) + "%"; } }
 
         public double TvPointer
         {

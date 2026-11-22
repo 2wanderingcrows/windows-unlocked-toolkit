@@ -108,7 +108,8 @@
         </StackPanel>
 
         <!-- Leanback Mode -->
-        <StackPanel Visibility="{Binding IsLean, Converter={StaticResource Vis}}" DataContext="{Binding Lean}">
+        <Border Visibility="{Binding IsLean, Converter={StaticResource Vis}}">
+        <StackPanel DataContext="{Binding Lean}">
           <Border Style="{StaticResource Card}" Padding="0" ClipToBounds="True">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width="300"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -169,6 +170,13 @@
                   <TextBlock DockPanel.Dock="Right" Text="{Binding ScaleText}" Style="{StaticResource Value}"/>
                   <Slider DockPanel.Dock="Right" Style="{StaticResource Range}" Minimum="100" Maximum="300" TickFrequency="25" Value="{Binding TvScale, Mode=TwoWay}" AutomationProperties.Name="Size of everything in Leanback mode"/>
                   <StackPanel Margin="0,0,16,0"><TextBlock Text="Size of everything in Leanback mode" Style="{StaticResource Label}"/><TextBlock Text="{Binding ScaleHint}" Style="{StaticResource Hint}"/></StackPanel>
+                </DockPanel>
+              </Border>
+              <Border Style="{StaticResource Row}">
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Right" Text="{Binding DeskScaleText}" Style="{StaticResource Value}"/>
+                  <Slider DockPanel.Dock="Right" Style="{StaticResource Range}" Minimum="100" Maximum="250" TickFrequency="25" Value="{Binding DeskScale, Mode=TwoWay}" AutomationProperties.Name="Size of everything in desktop mode"/>
+                  <StackPanel Margin="0,0,16,0"><TextBlock Text="Size of everything in desktop mode" Style="{StaticResource Label}"/><TextBlock Text="Your normal Windows scaling." Style="{StaticResource Hint}"/></StackPanel>
                 </DockPanel>
               </Border>
               <Border Style="{StaticResource Row}">
@@ -306,9 +314,11 @@
             </StackPanel>
           </Border>
         </StackPanel>
+        </Border>
 
         <!-- Media Tab Jump -->
-        <StackPanel Visibility="{Binding IsMtj, Converter={StaticResource Vis}}" DataContext="{Binding Mtj}">
+        <Border Visibility="{Binding IsMtj, Converter={StaticResource Vis}}">
+        <StackPanel DataContext="{Binding Mtj}">
           <TextBlock Text="Media Tab Jump" Style="{StaticResource H1}"/>
           <TextBlock Text="Click the now-playing card in the volume flyout to jump to the tab that's playing it." Style="{StaticResource Lede}" Margin="0,6,0,20"/>
           <TextBlock Text="{Binding Problem}" Style="{StaticResource Hint}" Foreground="#C2410C" Margin="0,0,0,14" Visibility="{Binding HasProblem, Converter={StaticResource Vis}}"/>
@@ -396,9 +406,11 @@
             </StackPanel>
           </Border>
         </StackPanel>
+        </Border>
 
         <!-- Appearance -->
-        <StackPanel Visibility="{Binding IsLook, Converter={StaticResource Vis}}" DataContext="{Binding Look}">
+        <Border Visibility="{Binding IsLook, Converter={StaticResource Vis}}">
+        <StackPanel DataContext="{Binding Look}">
           <TextBlock Text="Appearance" Style="{StaticResource H1}"/>
           <TextBlock Text="Make the toolkit yours. Changes apply to this window, the tray menu and the tray icon." Style="{StaticResource Lede}" Margin="0,6,0,20"/>
           <Border Style="{StaticResource Card}">
@@ -450,9 +462,11 @@
             </StackPanel>
           </Border>
         </StackPanel>
+        </Border>
 
         <!-- Updates and about -->
-        <StackPanel Visibility="{Binding IsAbout, Converter={StaticResource Vis}}" DataContext="{Binding About}">
+        <Border Visibility="{Binding IsAbout, Converter={StaticResource Vis}}">
+        <StackPanel DataContext="{Binding About}">
           <TextBlock Text="Updates and about" Style="{StaticResource H1}"/>
           <TextBlock Text="Free and open source. Every tool is readable code on GitHub." Style="{StaticResource Lede}" Margin="0,6,0,20"/>
           <Border Style="{StaticResource Card}">
@@ -479,6 +493,7 @@
             </StackPanel>
           </Border>
         </StackPanel>
+        </Border>
       </Grid>
     </ScrollViewer>
   </Grid>
