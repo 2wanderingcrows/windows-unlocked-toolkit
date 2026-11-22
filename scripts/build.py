@@ -26,8 +26,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TOOLS = ROOT / "tools"
 DIST = ROOT / "dist"
-REPO_URL = "https://github.com/maxsilbert805/windows-unlocked-toolkit"
-SITE_URL = "https://maxsilbert805.github.io/windows-unlocked-toolkit"
+REPO_URL = "https://github.com/2wanderingcrows/windows-unlocked-toolkit"
+SITE_URL = "https://2wanderingcrows.github.io/windows-unlocked-toolkit"
 REQUIRED = ["id", "name", "version", "summary", "install", "uninstall"]
 
 
