@@ -1,8 +1,8 @@
 {
   "id": "leanback",
   "name": "Leanback Mode",
-  "version": "1.0",
-  "summary": "Turn on a game controller and your PC switches to a couch-friendly TV mode (bigger text and pointer, controller works as a mouse). Turn it off to go back.",
+  "version": "1.1",
+  "summary": "Turn on a game controller and your PC switches to couch-friendly Leanback mode (bigger text and pointer, controller works as a mouse). Switch it off to go back; if it just falls asleep, Leanback mode stays on.",
   "install": "Install.ps1",
   "uninstall": "Uninstall.ps1",
   "admin": false,

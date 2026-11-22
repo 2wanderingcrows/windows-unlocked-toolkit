@@ -36,6 +36,16 @@ and pulses briefly when you click. It switches off over the play/pause buttons
 is off, the glow stays still. To turn the glow off or back on, double-click
 Toggle-Glow.cmd.
 
+The glow's look is adjustable. The easy way is the Windows Unlocked Toolkit
+tray app (Media Tab Jump page), which previews it as you go. Or create
+%LOCALAPPDATA%\MediaTabJump\settings.ini yourself; changes apply within a
+couple of seconds:
+
+    GlowStyle=Shift         Shift (colour shift), Accent, Sunset, Ocean or White
+    GlowColor=#3B6CF6       the colour used by GlowStyle=Accent
+    GlowBrightness=100      10 to 150 (percent)
+    GlowSize=100            50 to 200 (percent)
+
 
 REMOVE
 ------

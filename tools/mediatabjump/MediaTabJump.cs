@@ -1,4 +1,4 @@
-// Media Tab Jump  (version 7.1)
+// Media Tab Jump  (version 7.2)
 // ---------------------------------------------------------------------------
 // Click the "now playing" card in the Windows volume / Quick Settings flyout
 // and this jumps you to the browser tab that is playing it.
@@ -1666,6 +1666,46 @@ namespace MediaTabJump
 
         // ---------------------------------------------------------------- hover glow
 
+        // settings.ini next to the log (written by the Windows Unlocked Toolkit app, or by hand):
+        //   GlowStyle=Shift|Accent|Sunset|Ocean|White   GlowColor=#3B6CF6   GlowBrightness=100   GlowSize=100
+        private static DateTime glowSettingsStamp = DateTime.MinValue;
+
+        private static void ReadGlowSettings()
+        {
+            try
+            {
+                string path = Path.Combine(logDir, "settings.ini");
+                DateTime stamp = File.Exists(path) ? File.GetLastWriteTimeUtc(path) : DateTime.MinValue;
+                if (stamp == glowSettingsStamp) return;
+                glowSettingsStamp = stamp;
+                string style = "Shift";
+                int colour = 0x3B6CF6;
+                double bright = 100, size = 100;
+                if (stamp != DateTime.MinValue)
+                {
+                    foreach (string raw in File.ReadAllLines(path))
+                    {
+                        string line = raw.Trim();
+                        int eq = line.IndexOf('=');
+                        if (line.StartsWith("#") || eq < 0) continue;
+                        string k = line.Substring(0, eq).Trim().ToLowerInvariant(), v = line.Substring(eq + 1).Trim();
+                        double d;
+                        if (k == "glowstyle") style = v;
+                        else if (k == "glowcolor" && v.TrimStart('#').Length == 6)
+                        {
+                            int c;
+                            if (int.TryParse(v.TrimStart('#'), System.Globalization.NumberStyles.HexNumber, null, out c)) colour = c;
+                        }
+                        else if (k == "glowbrightness" && double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) bright = d;
+                        else if (k == "glowsize" && double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) size = d;
+                    }
+                }
+                GlowLayer.Configure(style, colour, bright / 100.0, size / 100.0);
+                Log("Glow look: " + style + ", brightness " + bright + "%, size " + size + "%");
+            }
+            catch (Exception ex) { Log("Couldn't read settings.ini: " + ex.Message); }
+        }
+
         private static readonly AutoResetEvent hoverWake = new AutoResetEvent(false);
         private static volatile bool hoverPress;
         private static volatile bool hoverRelease;
@@ -1761,7 +1801,8 @@ namespace MediaTabJump
             if (now - glowOffCheckedAt > 2000)
             {
                 glowOffCheckedAt = now;
-                glowOff = File.Exists(Path.Combine(logDir, "glow-off.txt"));   // created by Toggle-Glow.cmd
+                glowOff = File.Exists(Path.Combine(logDir, "glow-off.txt"));   // created by Toggle-Glow.cmd or the toolkit app
+                ReadGlowSettings();
             }
             if (glowOff)
             {
@@ -2096,6 +2137,42 @@ namespace MediaTabJump
 
         // Apple-Intelligence-style palette, evenly spaced around the card and looping.
         private static readonly int[] PaletteColours = { 0x8D9FFF, 0xBC82F3, 0xF5B9EA, 0xFF6778, 0xFFBA71, 0xC686FF };
+        private static readonly int[] SunsetColours = { 0xFF9A5A, 0xFF5E7E, 0xFFB86B, 0xFF7A6B };
+        private static readonly int[] OceanColours = { 0x5AB8FF, 0x6BE3C4, 0x8D9FFF, 0x4FD1FF };
+        private static readonly int[] WhiteColours = { 0xFFFFFF, 0xE4EAFF };
+
+        // Look chosen in settings.ini (see Program.ReadGlowSettings). Read by the glow thread when "changed" is set.
+        private static int[] wantPalette = PaletteColours;
+        private static double wantBrightness = 1, wantSize = 1;
+        private static bool lookChanged;
+        private static double brightness = 1, sizeFactor = 1;   // glow thread only
+
+        // style: Shift | Accent | Sunset | Ocean | White.  brightness and size: 1 = the original look.
+        public static void Configure(string style, int accentRgb, double bright, double size)
+        {
+            int[] colours;
+            switch ((style ?? "").Trim().ToLowerInvariant())
+            {
+                case "accent": colours = new[] { accentRgb, Mix(accentRgb, 0xFFFFFF, 0.35), accentRgb, Mix(accentRgb, 0x000000, 0.15) }; break;
+                case "sunset": colours = SunsetColours; break;
+                case "ocean": colours = OceanColours; break;
+                case "white": colours = WhiteColours; break;
+                default: colours = PaletteColours; break;
+            }
+            lock (gate)
+            {
+                wantPalette = colours;
+                wantBrightness = Math.Max(0.1, Math.Min(1.5, bright));
+                wantSize = Math.Max(0.5, Math.Min(2.0, size));
+                lookChanged = true;
+            }
+        }
+
+        private static int Mix(int a, int b, double t)
+        {
+            int r = (int)Lerp((a >> 16) & 255, (b >> 16) & 255, t), g = (int)Lerp((a >> 8) & 255, (b >> 8) & 255, t), bl = (int)Lerp(a & 255, b & 255, t);
+            return (r << 16) | (g << 8) | bl;
+        }
 
         // ---- state shared with the hover thread ----
         private static readonly object gate = new object();
@@ -2214,6 +2291,13 @@ namespace MediaTabJump
                     pulseNow = pulseRequested;
                     pulseRequested = false;
                     if (dismissRequested) { fastFade = true; dismissRequested = false; }
+                    if (lookChanged)
+                    {
+                        lookChanged = false;
+                        BuildPalette(wantPalette);
+                        brightness = wantBrightness;
+                        if (sizeFactor != wantSize) { sizeFactor = wantSize; builtScale = -1; }   // rebuild the light map
+                    }
                 }
 
                 double now = clock.Elapsed.TotalSeconds;
@@ -2325,18 +2409,23 @@ namespace MediaTabJump
 
         private static void BuildTables()
         {
-            int n = PaletteColours.Length;
+            BuildPalette(PaletteColours);
+            for (int i = 0; i < expTable.Length; i++) expTable[i] = (float)Math.Exp(-i * ExpRange / expTable.Length);
+        }
+
+        private static void BuildPalette(int[] colours)
+        {
+            int n = colours.Length;
             for (int i = 0; i < 1024; i++)
             {
                 double u = i / 1024.0 * n;
                 int a = (int)Math.Floor(u) % n, b = (a + 1) % n;
                 double t = u - Math.Floor(u);
                 t = t * t * (3 - 2 * t);
-                paletteR[i] = (float)(Lerp((PaletteColours[a] >> 16) & 255, (PaletteColours[b] >> 16) & 255, t) / 255.0);
-                paletteG[i] = (float)(Lerp((PaletteColours[a] >> 8) & 255, (PaletteColours[b] >> 8) & 255, t) / 255.0);
-                paletteB[i] = (float)(Lerp(PaletteColours[a] & 255, PaletteColours[b] & 255, t) / 255.0);
+                paletteR[i] = (float)(Lerp((colours[a] >> 16) & 255, (colours[b] >> 16) & 255, t) / 255.0);
+                paletteG[i] = (float)(Lerp((colours[a] >> 8) & 255, (colours[b] >> 8) & 255, t) / 255.0);
+                paletteB[i] = (float)(Lerp(colours[a] & 255, colours[b] & 255, t) / 255.0);
             }
-            for (int i = 0; i < expTable.Length; i++) expTable[i] = (float)Math.Exp(-i * ExpRange / expTable.Length);
         }
 
         private static double Lerp(double a, double b, double t) { return a + (b - a) * t; }
@@ -2355,7 +2444,7 @@ namespace MediaTabJump
             reduceMotion = animationsOn == 0;   // respect Windows' "Animation effects" setting
 
             double s = scale <= 0 ? 1 : scale;
-            int margin = (int)Math.Ceiling(MarginPx * s);
+            int margin = (int)Math.Ceiling(MarginPx * s * sizeFactor);
             int w = Math.Min((int)Math.Ceiling(card.W) + 2 * margin, 4000);
             int h = Math.Min((int)Math.Ceiling(card.H) + 2 * margin, 4000);
             int x0 = (int)Math.Floor(card.X) - margin, y0 = (int)Math.Floor(card.Y) - margin;
@@ -2409,8 +2498,9 @@ namespace MediaTabJump
                     double mx = Math.Max(qx, 0), my = Math.Max(qy, 0);
                     double d = Math.Sqrt(mx * mx + my * my) + Math.Min(Math.Max(qx, qy), 0) - r;   // distance from the card's edge
                     double dp = Math.Max(d, 0);
-                    double outside = CoreAmount * Math.Exp(-dp / (CoreWidth * s)) +
-                                     BloomAmount * Math.Exp(-(dp * dp) / (2 * (BloomWidth * s) * (BloomWidth * s)));
+                    double sz = s * sizeFactor;
+                    double outside = CoreAmount * Math.Exp(-dp / (CoreWidth * sz)) +
+                                     BloomAmount * Math.Exp(-(dp * dp) / (2 * (BloomWidth * sz) * (BloomWidth * sz)));
                     double inside = RimAmount * Math.Exp(Math.Min(d, 0) / (RimWidth * s));
                     double t = Math.Min(Math.Max(d + 0.5, 0), 1);
                     double a = Math.Min(inside * (1 - t) + outside * t, Cap);
@@ -2444,7 +2534,7 @@ namespace MediaTabJump
             double phase = reduceMotion ? 0.15 : now / ColourCycleSeconds;
             int phaseIndex = (int)((phase - Math.Floor(phase)) * 1024) & 1023;
             double breathe = reduceMotion ? 1 : 0.92 + 0.08 * Math.Sin(2 * Math.PI * now / BreatheSeconds);
-            float boost = (float)(breathe * (1 + 0.6 * pulse));
+            float boost = (float)(breathe * (1 + 0.6 * pulse) * brightness);
             float sheenK = (float)(1 / (2 * (SheenWidth * s) * (SheenWidth * s)));
             float specK = (float)(1 / (2 * (SpecularWidth * s) * (SpecularWidth * s)));
             float sheenFloor = (float)SheenFloor, specWhite = (float)SpecularWhite, cover = (float)LightCover;

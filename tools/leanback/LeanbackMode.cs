@@ -1,8 +1,11 @@
 // Leanback Mode for Windows  (part of Windows Unlocked Toolkit)
 // Watches for a game controller: Xbox-style (XInput) pads, plus PlayStation, Switch Pro, 8BitDo and
 // generic Bluetooth / 2.4 GHz pads that Windows lists as "HID-compliant game controller".
-// Controller on  -> "TV mode": bigger Windows scaling on the primary display + bigger mouse pointer.
-// Controller off -> back to your normal scaling and pointer size.
+// Controller on  -> "Leanback mode": bigger Windows scaling on the primary display + bigger mouse pointer.
+// Controller off -> back to your normal scaling and pointer size ("desktop mode").
+// If the controller only fell asleep (it went off by itself after sitting idle), Leanback mode stays on;
+// switching the controller off yourself goes back to desktop mode. See StayInLeanbackWhenAsleep.
+// (Internally and in settings.ini, Leanback mode is still called "TV", e.g. TvScale and Mode=TV.)
 //
 // The switch is hidden behind a frosted overlay:
 //   1. blur in (vsync-paced fade)            2. switch scaling + pointer behind it
@@ -138,6 +141,18 @@ namespace LeanbackMode
 
     static class Native
     {
+        [StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
+        [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
+
+        // How long since any keyboard, mouse or controller-as-mouse input (AntiMicroX types and clicks for the controller).
+        public static TimeSpan SinceLastInput()
+        {
+            var li = new LASTINPUTINFO();
+            li.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+            if (!GetLastInputInfo(ref li)) return TimeSpan.Zero;
+            return TimeSpan.FromMilliseconds(unchecked((uint)Environment.TickCount - li.dwTime));
+        }
+
         [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
         [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr hwnd);
         [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
@@ -205,6 +220,9 @@ namespace LeanbackMode
         public string GameFolders = @"C:\Games";
         public string NotGames = "";
         public string AntiMicroXPath = @"C:\Program Files\AntiMicroX\bin\antimicrox.exe";
+        public bool ShowTrayIcon = true;        // the Windows Unlocked Toolkit app turns this off and shows its own icon
+        public bool StayInLeanbackWhenAsleep = true; // controller went off by itself after sitting idle -> keep Leanback mode
+        public double AsleepAfterIdleMinutes = 5;     // idle this long before going off = it fell asleep
         public string DetectControllers = "All"; // All | XInput
         public string IgnoreControllers = "";    // VID:PID;VID:PID  (hex, as shown in the log)
         public string AntiMicroXProfile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"antimicrox\profiles\controller-mouse.amgp");
@@ -259,13 +277,16 @@ namespace LeanbackMode
                     case "resumeaftergameseconds": if (double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) s.ResumeAfterGameSeconds = Math.Max(0, d); break;
                     case "gamefolders": s.GameFolders = v; break;
                     case "notgames": s.NotGames = v; break;
+                    case "showtrayicon": s.ShowTrayIcon = !(v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)); break;
+                    case "stayinleanbackwhenasleep": s.StayInLeanbackWhenAsleep = !(v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)); break;
+                    case "asleepafteridleminutes": if (double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) s.AsleepAfterIdleMinutes = Math.Max(0.5, d); break;
                     case "detectcontrollers": s.DetectControllers = v.Equals("xinput", StringComparison.OrdinalIgnoreCase) ? "XInput" : "All"; break;
                     case "ignorecontrollers": s.IgnoreControllers = v; break;
                     case "antimicroxpath": if (v.Length > 0) s.AntiMicroXPath = v; break;
                     case "antimicroxprofile": if (v.Length > 0) s.AntiMicroXProfile = v; break;
                 }
             }
-            if (!seen.Contains("crossfadems") || !seen.Contains("pausemouseingames") || !seen.Contains("hotkey") || !seen.Contains("detectcontrollers")) { try { s.Save(); } catch { } } // add new options to older files
+            if (!seen.Contains("crossfadems") || !seen.Contains("pausemouseingames") || !seen.Contains("hotkey") || !seen.Contains("detectcontrollers") || !seen.Contains("stayinleanbackwhenasleep")) { try { s.Save(); } catch { } } // add new options to older files
             s.ApplyToController();
             return s;
         }
@@ -294,7 +315,7 @@ namespace LeanbackMode
             sb.AppendLine("NormalPointerSize=" + NormalPointerSize);
             sb.AppendLine("#");
             sb.AppendLine("# Which controllers count. All = Xbox-style (XInput) plus PlayStation, Switch Pro and other Bluetooth / 2.4 GHz");
-            sb.AppendLine("# game controllers. XInput = only Xbox-style ones. If something that isn't a controller keeps TV mode on, the log");
+            sb.AppendLine("# game controllers. XInput = only Xbox-style ones. If something that isn't a controller keeps Leanback mode on, the log");
             sb.AppendLine("# (log.txt in this folder) names it with an ID like 054C:0CE6: add that to IgnoreControllers (separate with ;).");
             sb.AppendLine("DetectControllers=" + DetectControllers);
             sb.AppendLine("IgnoreControllers=" + IgnoreControllers);
@@ -302,6 +323,14 @@ namespace LeanbackMode
             sb.AppendLine("# How long the controller must stay on / off before switching (avoids flicker on brief signal drops).");
             sb.AppendLine("SwitchOnDelaySeconds=" + SwitchOnDelaySeconds.ToString(CultureInfo.InvariantCulture));
             sb.AppendLine("SwitchOffDelaySeconds=" + SwitchOffDelaySeconds.ToString(CultureInfo.InvariantCulture));
+            sb.AppendLine("#");
+            sb.AppendLine("# Controllers switch themselves off after sitting idle for a while. Windows can't tell that apart from you");
+            sb.AppendLine("# switching it off, so Leanback Mode looks at what happened just before: if nothing on the controller was");
+            sb.AppendLine("# touched for AsleepAfterIdleMinutes, it fell asleep and Leanback mode stays on (until the controller next");
+            sb.AppendLine("# turns on and off, or you use the shortcut). Holding the Home / Xbox button to switch it off always counts as");
+            sb.AppendLine("# you switching it off (Xbox-style controllers only). StayInLeanbackWhenAsleep=false: always go back to desktop.");
+            sb.AppendLine("StayInLeanbackWhenAsleep=" + (StayInLeanbackWhenAsleep ? "true" : "false"));
+            sb.AppendLine("AsleepAfterIdleMinutes=" + AsleepAfterIdleMinutes.ToString(CultureInfo.InvariantCulture));
             sb.AppendLine("#");
             sb.AppendLine("# Transition (milliseconds). SmoothTransition=false switches instantly with no overlay.");
             sb.AppendLine("#   FadeInMs     blur in");
@@ -316,11 +345,11 @@ namespace LeanbackMode
             sb.AppendLine("CrossfadeMs=" + CrossfadeMs);
             sb.AppendLine("FadeOutMs=" + FadeOutMs);
             sb.AppendLine("#");
-            sb.AppendLine("# Auto = follow the controller, TV = always TV mode, Normal = always normal (also set from the tray menu).");
+            sb.AppendLine("# Auto = follow the controller, TV = always Leanback mode, Normal = always desktop mode (also set from the tray menu).");
             sb.AppendLine("Mode=" + Mode);
             sb.AppendLine("#");
-            sb.AppendLine("# Keyboard shortcut that switches between TV and desktop mode from anywhere (Ctrl/Alt/Shift/Win + a key).");
-            sb.AppendLine("# In automatic mode the switch lasts until the controller next turns on (-> TV) or off (-> desktop).");
+            sb.AppendLine("# Keyboard shortcut that switches between Leanback and desktop mode from anywhere (Ctrl/Alt/Shift/Win + a key).");
+            sb.AppendLine("# In automatic mode the switch lasts until the controller next turns on (-> Leanback) or off (-> desktop).");
             sb.AppendLine("Hotkey=" + Hotkey);
             sb.AppendLine("#");
             sb.AppendLine("# Pause the controller mouse (AntiMicroX) while a game is the window in front, so the game gets the controller.");
@@ -331,6 +360,9 @@ namespace LeanbackMode
             sb.AppendLine("ResumeAfterGameSeconds=" + ResumeAfterGameSeconds.ToString(CultureInfo.InvariantCulture));
             sb.AppendLine("GameFolders=" + GameFolders);
             sb.AppendLine("NotGames=" + NotGames);
+            sb.AppendLine("#");
+            sb.AppendLine("# Show Leanback Mode's own tray icon. The Windows Unlocked Toolkit app sets this to false while it runs.");
+            sb.AppendLine("ShowTrayIcon=" + (ShowTrayIcon ? "true" : "false"));
             sb.AppendLine("AntiMicroXPath=" + AntiMicroXPath);
             sb.AppendLine("AntiMicroXProfile=" + AntiMicroXProfile);
             File.WriteAllText(FilePath, sb.ToString());
@@ -364,6 +396,45 @@ namespace LeanbackMode
         [StructLayout(LayoutKind.Sequential)]
         struct XINPUT_STATE { public uint Packet; public ushort Buttons; public byte LT, RT; public short LX, LY, RX, RY; }
         [DllImport("xinput1_4.dll")] static extern uint XInputGetState(uint index, out XINPUT_STATE state);
+        // Undocumented export #100 also reports the Home / Xbox (guide) button. Used only to notice it being held
+        // to switch the controller off; falls back to the normal call if it's missing.
+        [DllImport("xinput1_4.dll", EntryPoint = "#100")] static extern uint XInputGetStateEx(uint index, out XINPUT_STATE state);
+        static bool exMissing;
+        const ushort GUIDE = 0x0400;
+
+        // When a controller was last used (button, trigger or stick), and when its Home button was last pressed.
+        // Lets the app tell "fell asleep after sitting idle" apart from "switched off by hand".
+        public static DateTime LastActivity = DateTime.Now, LastGuide = DateTime.MinValue;
+        public static bool SawXInput;   // activity above came from an XInput pad (HID pads fall back to system input time)
+        static readonly XINPUT_STATE[] prev = new XINPUT_STATE[4];
+        static readonly bool[] hadPrev = new bool[4];
+
+        static uint ReadXInput(uint i, out XINPUT_STATE s)
+        {
+            if (!exMissing)
+            {
+                try { return XInputGetStateEx(i, out s); }
+                catch (EntryPointNotFoundException) { exMissing = true; }
+            }
+            return XInputGetState(i, out s);
+        }
+
+        static bool Moved(short a, short b) { return Math.Abs(a - b) > 2500 && (Math.Abs((int)a) > 7000 || Math.Abs((int)b) > 7000); }
+
+        static void Track(uint i, XINPUT_STATE s)
+        {
+            SawXInput = true;
+            if (hadPrev[i])
+            {
+                var p = prev[i];
+                bool used = s.Buttons != p.Buttons || Math.Abs(s.LT - p.LT) > 40 || Math.Abs(s.RT - p.RT) > 40 ||
+                            Moved(s.LX, p.LX) || Moved(s.LY, p.LY) || Moved(s.RX, p.RX) || Moved(s.RY, p.RY);
+                if (used) LastActivity = DateTime.Now;
+            }
+            if ((s.Buttons & GUIDE) != 0) LastGuide = DateTime.Now;
+            prev[i] = s;
+            hadPrev[i] = true;
+        }
 
         // 2) Raw Input HID devices whose usage is joystick / gamepad / multi-axis controller: PlayStation,
         //    Switch Pro, and generic Bluetooth / 2.4 GHz pads. Listing them is cheap and needs no driver.
@@ -397,7 +468,11 @@ namespace LeanbackMode
             for (uint i = 0; i < 4; i++)
             {
                 XINPUT_STATE s;
-                try { if (XInputGetState(i, out s) == 0) return "Xbox-style controller (XInput slot " + (i + 1) + ")"; }
+                try
+                {
+                    if (ReadXInput(i, out s) == 0) { Track(i, s); return "Xbox-style controller (XInput slot " + (i + 1) + ")"; }
+                    hadPrev[i] = false;
+                }
                 catch { break; } // XInput missing: fall through to HID
             }
             return AllTypes ? FindHid() : null;
@@ -728,7 +803,7 @@ namespace LeanbackMode
 
                 float s = h / 1440f, cx = w / 2f, cy = h / 2f;
                 string glyph = tv ? "\uE7FC" : "\uE7F4"; // game controller / monitor
-                string title = tv ? "TV mode" : "Desktop mode";
+                string title = tv ? "Leanback mode" : "Desktop mode";
                 string sub = reason == "manual" ? "Switched from the tray menu"
                            : reason == "preview" ? "Preview"
                            : reason == "controller" ? (tv ? "Controller connected" : "Controller turned off")
@@ -1274,7 +1349,8 @@ namespace LeanbackMode
     class TrayApp : ApplicationContext
     {
         public const string ExitEventName = "Local\\LeanbackMode_Exit"; // set by "LeanbackMode.exe --exit"
-        EventWaitHandle exitEvent;
+        public const string ToggleEventName = "Local\\LeanbackMode_Toggle"; // set by the toolkit app's "Switch" button
+        EventWaitHandle exitEvent, toggleEvent;
         Settings settings;
         readonly NotifyIcon tray = new NotifyIcon();
         readonly System.Windows.Forms.Timer poll = new System.Windows.Forms.Timer();
@@ -1290,6 +1366,8 @@ namespace LeanbackMode
         bool busy, exitRequested;
         string pendingReason;     // why the next switch happens (shown on the overlay)
         bool? overrideTv;         // set by the shortcut; cleared the next time the controller turns on/off
+        bool asleepHold;          // overrideTv was set because the controller fell asleep (not by the shortcut)
+        TimeSpan idleWhenLost;    // how long the controller had been idle when it disappeared
         HotkeyListener hotkey;
         ToolStripMenuItem toggleItem;
 
@@ -1311,9 +1389,9 @@ namespace LeanbackMode
 
             var menu = new ContextMenuStrip();
             statusItem = new ToolStripMenuItem("Leanback Mode") { Enabled = false };
-            toggleItem = new ToolStripMenuItem("Switch TV / desktop mode", null, delegate { ToggleMode("Switched from the tray menu"); });
+            toggleItem = new ToolStripMenuItem("Switch Leanback / desktop mode", null, delegate { ToggleMode("Switched from the tray menu"); });
             autoItem = new ToolStripMenuItem("Follow controller (automatic)", null, delegate { SetMode("Auto"); });
-            tvItem = new ToolStripMenuItem("Always TV mode", null, delegate { SetMode("TV"); });
+            tvItem = new ToolStripMenuItem("Always Leanback mode", null, delegate { SetMode("TV"); });
             normalItem = new ToolStripMenuItem("Always desktop mode", null, delegate { SetMode("Normal"); });
             mouseStatusItem = new ToolStripMenuItem("Controller mouse") { Enabled = false };
             pauseInGamesItem = new ToolStripMenuItem("Pause controller mouse in games", null, delegate
@@ -1353,7 +1431,7 @@ namespace LeanbackMode
             Log.Write("started; controller " + (rawConnected ? "on: " + lastFound : "off") + ", mode " + settings.Mode);
             LoadOverride();
             tray.Icon = iconNormal;
-            tray.Visible = true;
+            tray.Visible = settings.ShowTrayIcon;
             Apply(true);
 
             poll.Interval = 250;
@@ -1390,6 +1468,27 @@ namespace LeanbackMode
                 waiter.Start();
             }
             catch (Exception ex) { Log.Write("exit listener failed: " + ex.Message); }
+
+            // Let the toolkit app switch modes, like the shortcut does.
+            try
+            {
+                toggleEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ToggleEventName);
+                var toggler = new Thread(delegate()
+                {
+                    while (true)
+                    {
+                        try
+                        {
+                            toggleEvent.WaitOne();
+                            invoker.BeginInvoke((MethodInvoker)delegate { ToggleMode("Switched from the toolkit"); });
+                        }
+                        catch { return; }
+                    }
+                });
+                toggler.IsBackground = true;
+                toggler.Start();
+            }
+            catch (Exception ex) { Log.Write("toggle listener failed: " + ex.Message); }
         }
 
         bool WantTv
@@ -1415,8 +1514,8 @@ namespace LeanbackMode
                 settings.Mode = target ? "TV" : "Normal";
                 try { settings.Save(); } catch (Exception ex) { Log.Write("save failed: " + ex.Message); }
             }
-            else { overrideTv = target; SaveOverride(); }
-            Log.Write((target ? "TV mode" : "desktop mode") + " requested (" + reason + ")");
+            else { overrideTv = target; asleepHold = false; SaveOverride(); }
+            Log.Write((target ? "Leanback mode" : "desktop mode") + " requested (" + reason + ")");
             pendingReason = reason;
             Apply(false);
         }
@@ -1430,7 +1529,8 @@ namespace LeanbackMode
             {
                 if (!overrideTv.HasValue) { if (File.Exists(StatePath)) File.Delete(StatePath); return; }
                 File.WriteAllText(StatePath, "OverrideTv=" + (overrideTv.Value ? "true" : "false") + Environment.NewLine +
-                                             "ControllerWas=" + (stableConnected ? "on" : "off") + Environment.NewLine);
+                                             "ControllerWas=" + (stableConnected ? "on" : "off") + Environment.NewLine +
+                                             "Asleep=" + (asleepHold ? "true" : "false") + Environment.NewLine);
             }
             catch (Exception ex) { Log.Write("couldn't save shortcut state: " + ex.Message); }
         }
@@ -1440,18 +1540,19 @@ namespace LeanbackMode
             try
             {
                 if (!File.Exists(StatePath)) return;
-                string tv = null, was = null;
+                string tv = null, was = null, asleep = null;
                 foreach (var line in File.ReadAllLines(StatePath))
                 {
                     int eq = line.IndexOf('=');
                     if (eq < 0) continue;
                     string k = line.Substring(0, eq).Trim(), v = line.Substring(eq + 1).Trim();
-                    if (k == "OverrideTv") tv = v; else if (k == "ControllerWas") was = v;
+                    if (k == "OverrideTv") tv = v; else if (k == "ControllerWas") was = v; else if (k == "Asleep") asleep = v;
                 }
                 if (tv != null && was == (stableConnected ? "on" : "off"))
                 {
                     overrideTv = tv == "true";
-                    Log.Write("kept the shortcut switch to " + (overrideTv.Value ? "TV" : "desktop") + " mode from before the restart");
+                    asleepHold = asleep == "true" && overrideTv.Value;
+                    Log.Write("kept the " + (asleepHold ? "controller-asleep hold" : "shortcut switch") + " to " + (overrideTv.Value ? "Leanback" : "desktop") + " mode from before the restart");
                 }
                 else { overrideTv = null; File.Delete(StatePath); } // controller changed while we were closed
             }
@@ -1511,17 +1612,49 @@ namespace LeanbackMode
             string found = Controller.Find();
             bool now = found != null;
             if (now) lastFound = found;
-            if (now != rawConnected) { rawConnected = now; rawSince = DateTime.Now; }
+            if (now != rawConnected)
+            {
+                rawConnected = now;
+                rawSince = DateTime.Now;
+                if (!now) idleWhenLost = IdleBeforeLoss();
+            }
             double needed = rawConnected ? settings.SwitchOnDelaySeconds : settings.SwitchOffDelaySeconds;
             if (rawConnected != stableConnected && (DateTime.Now - rawSince).TotalSeconds >= needed)
             {
                 stableConnected = rawConnected;
                 overrideTv = null; // the controller takes over again after a shortcut switch
+                asleepHold = false;
+                if (!stableConnected && FellAsleep())
+                {
+                    // It went off by itself after sitting idle: stay in Leanback mode until it turns on/off again.
+                    overrideTv = true;
+                    asleepHold = true;
+                    Log.Write("controller went off after " + Math.Round(idleWhenLost.TotalMinutes, 1) + " min idle, so it fell asleep; staying in Leanback mode");
+                }
+                else Log.Write(stableConnected ? "controller turned on: " + lastFound : "controller turned off");
                 SaveOverride();
-                Log.Write(stableConnected ? "controller turned on: " + lastFound : "controller turned off");
-                pendingReason = "controller";
+                pendingReason = asleepHold ? null : "controller";
                 Apply(false);
             }
+        }
+
+        // Idle time just before the controller disappeared. XInput pads report their own buttons and sticks;
+        // for other pads, the last keyboard/mouse input stands in (the controller mouse produces mouse input).
+        TimeSpan IdleBeforeLoss()
+        {
+            DateTime now = DateTime.Now;
+            if (Controller.SawXInput) return now - Controller.LastActivity;
+            return Native.SinceLastInput();
+        }
+
+        // Only meaningful while Leanback mode is on and following the controller.
+        bool FellAsleep()
+        {
+            if (!settings.StayInLeanbackWhenAsleep) return false;
+            if (!string.Equals(settings.Mode, "Auto", StringComparison.OrdinalIgnoreCase)) return false;
+            if (!(appliedTv.HasValue && appliedTv.Value)) return false;
+            if ((rawSince - Controller.LastGuide).TotalSeconds < 20) return false; // Home button held to switch it off
+            return idleWhenLost.TotalMinutes >= settings.AsleepAfterIdleMinutes;
         }
 
         void Apply(bool force)
@@ -1584,7 +1717,7 @@ namespace LeanbackMode
         void Done(bool tv, string err)
         {
             appliedTv = tv;
-            Log.Write((tv ? "TV mode" : "normal mode") + " applied" + (err != null ? "; " + err : ""));
+            Log.Write((tv ? "Leanback mode" : "desktop mode") + " applied" + (err != null ? "; " + err : ""));
             UpdateUi();
             if (exitRequested) { ExitApp(); return; }
             if (WantTv != tv) Apply(false); // controller changed again mid-transition
@@ -1604,6 +1737,7 @@ namespace LeanbackMode
         {
             settings.Mode = mode;
             overrideTv = null;
+            asleepHold = false;
             SaveOverride();
             pendingReason = "manual";
             try { settings.Save(); } catch (Exception ex) { Log.Write("save failed: " + ex.Message); }
@@ -1618,6 +1752,7 @@ namespace LeanbackMode
                 games.Configure(settings);
                 Log.Write("settings reloaded");
                 if (!string.Equals(hotkey.Current, settings.Hotkey, StringComparison.OrdinalIgnoreCase)) RegisterHotkey();
+                tray.Visible = settings.ShowTrayIcon;
                 Apply(true); // re-apply current mode with the new numbers
             }
             catch (Exception ex) { Log.Write("reload failed: " + ex.Message); }
@@ -1627,9 +1762,9 @@ namespace LeanbackMode
         {
             bool tv = appliedTv.HasValue && appliedTv.Value;
             string why = !string.Equals(settings.Mode, "Auto", StringComparison.OrdinalIgnoreCase) ? "always"
-                : overrideTv.HasValue ? "shortcut"
+                : overrideTv.HasValue ? (asleepHold ? "controller asleep" : "shortcut")
                 : (stableConnected ? "controller on" : "controller off");
-            string text = (tv ? "TV mode" : "Desktop mode") + " (" + why + ")";
+            string text = (tv ? "Leanback mode" : "Desktop mode") + " (" + why + ")";
             tray.Icon = tv ? iconTv : iconNormal;
             tray.Text = "Leanback Mode: " + text;
             statusItem.Text = text;
@@ -1638,9 +1773,26 @@ namespace LeanbackMode
             mouseStatusItem.Text = mousePausedByUs ? "Controller mouse paused (" + pausedFor + ")"
                 : MouseMapper.IsRunning() ? "Controller mouse on" : "Controller mouse off (AntiMicroX not running)";
             pauseInGamesItem.Checked = settings.PauseMouseInGames;
+            WriteStatus(tv, why);
             autoItem.Checked = string.Equals(settings.Mode, "Auto", StringComparison.OrdinalIgnoreCase);
             tvItem.Checked = string.Equals(settings.Mode, "TV", StringComparison.OrdinalIgnoreCase);
             normalItem.Checked = string.Equals(settings.Mode, "Normal", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // status.ini: what the toolkit app shows. Only rewritten when something changed.
+        string lastStatus;
+        void WriteStatus(bool tv, string why)
+        {
+            string mouse = mousePausedByUs ? "paused" : MouseMapper.IsRunning() ? "on" : "off";
+            string text = "Mode=" + (tv ? "TV" : "Desktop") + Environment.NewLine +
+                          "Why=" + why + Environment.NewLine +
+                          "Controller=" + (stableConnected && lastFound != null ? lastFound : "") + Environment.NewLine +
+                          "LastController=" + (lastFound ?? "") + Environment.NewLine +
+                          "Mouse=" + mouse + (mousePausedByUs && pausedFor != null ? " (" + pausedFor + ")" : "") + Environment.NewLine +
+                          "Hotkey=" + (hotkey != null && hotkey.Current != null ? hotkey.Current : "") + Environment.NewLine;
+            if (text == lastStatus) return;
+            lastStatus = text;
+            try { File.WriteAllText(Path.Combine(Settings.Dir, "status.ini"), text); } catch { }
         }
 
         void ExitApp()
@@ -1664,6 +1816,7 @@ namespace LeanbackMode
         void Quit()
         {
             if (mousePausedByUs) ResumeMouse("Leanback Mode closing"); // never leave the controller mouse off
+            try { File.Delete(Path.Combine(Settings.Dir, "status.ini")); } catch { }
             if (hotkey != null) hotkey.Dispose();
             tray.Visible = false;
             tray.Dispose();

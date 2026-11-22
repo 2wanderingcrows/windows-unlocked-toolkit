@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Leanback Mode for Windows: TV mode when a controller turns on, plus controller-as-mouse.
+    Installs Leanback Mode for Windows: Leanback mode when a controller turns on, plus controller-as-mouse.
 
 .DESCRIPTION
     1. Installs AntiMicroX (free, open-source controller-to-mouse app) with winget if it isn't
@@ -80,7 +80,7 @@ try {
     # ------------------------------------------------------------ 2. stop running copies
 
     Write-Step 'Stopping running copies'
-    # Stopped directly (not "--exit") so your current TV/desktop mode stays as it is;
+    # Stopped directly (not "--exit") so your current Leanback/desktop mode stays as it is;
     # the new copy picks it up when it starts.
     foreach ($name in 'antimicrox', 'LeanbackMode', 'ControllerTVMode') {
         $procs = Get-Process -Name $name -ErrorAction SilentlyContinue
@@ -143,7 +143,7 @@ try {
     $oldShortcut = Join-Path $startup 'Controller TV Mode.lnk'
     if (Test-Path -LiteralPath $oldShortcut) { Remove-Item -LiteralPath $oldShortcut -Force }
     New-Shortcut (Join-Path $startup 'AntiMicroX (controller mouse).lnk') $amxExe "--tray --profile `"$amxProfile`"" 'Controller as mouse (AntiMicroX, tray only)'
-    New-Shortcut (Join-Path $startup 'Leanback Mode.lnk') $appExe '' 'TV mode while a game controller is on'
+    New-Shortcut (Join-Path $startup 'Leanback Mode.lnk') $appExe '' 'Leanback mode while a game controller is on'
 
     if ($NoStart) {
         Write-Step 'Not starting the apps (-NoStart); they start at your next sign-in.'
@@ -156,7 +156,7 @@ try {
 
     Write-Host ''
     Write-Host 'Leanback Mode is installed.' -ForegroundColor Green
-    Write-Host '  Turn a controller on for TV mode (bigger text and pointer); turn it off for desktop mode.'
+    Write-Host '  Turn a controller on for Leanback mode (bigger text and pointer); turn it off for desktop mode.'
     Write-Host '  Ctrl+Alt+T switches modes any time. Settings: right-click the TV icon in the tray > Edit settings.'
 }
 catch {
