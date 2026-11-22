@@ -58,9 +58,31 @@ jobs:
         with:
           path: dist/
 
+  compile:
+    # Builds every tool's C# with the same compiler a user's PC has (.NET Framework 4.x csc, C# 5).
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile each tool with the C# compiler built into Windows
+        shell: powershell
+        run: |
+          $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+          $bad = 0
+          foreach ($cs in Get-ChildItem -Path tools -Recurse -Filter *.cs) {
+            $out = Join-Path $env:RUNNER_TEMP ($cs.BaseName + '.exe')
+            $log = & $csc /nologo /target:winexe /r:System.Windows.Forms.dll /r:System.Drawing.dll "/out:$out" $cs.FullName 2>&1
+            if ($LASTEXITCODE -ne 0) {
+              $bad++
+              $log | Where-Object { $_ -match 'error' } | ForEach-Object { Write-Host "::error file=$($cs.FullName)::$_" }
+            }
+            else { Write-Host "OK  $($cs.FullName)" }
+          }
+          if ($bad) { exit 1 }
+
   deploy:
     if: github.event_name != 'pull_request'
-    needs: build
+    needs: [build, compile]
     runs-on: ubuntu-latest
     permissions:
       pages: write
