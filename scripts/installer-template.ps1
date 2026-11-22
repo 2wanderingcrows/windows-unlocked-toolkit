@@ -7,10 +7,11 @@
 # tools/ folder in the repo and the build makes a new one.
 #
 # Every tool's complete source is inside this file, base64-encoded so it
-# survives being downloaded or pasted. Nothing else is downloaded. A tool you
+# survives being downloaded or pasted. A tool you
 # pick is unpacked to %LOCALAPPDATA%\WindowsUnlockedToolkit\<tool>, and then
 # that tool's own installer runs from there. You can read each tool's source
-# in the repo above before running this.
+# in the repo above before running this. The only download any tool makes is
+# Leanback Mode installing AntiMicroX with winget, if it isn't already there.
 
 & {
 $ErrorActionPreference = 'Stop'
