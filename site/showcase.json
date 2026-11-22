@@ -31,13 +31,24 @@
       "alt": "The Windows volume flyout with a glowing now-playing card, and an arrow to the browser tab that is playing",
       "mockup": true,
       "accent": "#f2552c"
+    },
+    "toolkit": {
+      "tagline": "Every tool, one tidy tray icon.",
+      "problem": "Small helpers are great until you have five tray icons and five settings files. The toolkit tray app puts every tool behind one icon, with quick switches and a settings page for each.",
+      "bullets": [
+        "Click once to flip between Leanback mode and desktop mode, or turn any tool on or off",
+        "Tune controller speed, scrolling and what every button does, without touching a config file",
+        "Pick the hover glow's colour, brightness and size, with a live preview",
+        "Light or dark, your Windows accent or one of nine colours, three tray icon styles",
+        "Pause everything for an hour when you need a plain PC"
+      ],
+      "image": "assets/hero.svg",
+      "alt": "The toolkit's tray menu: a Leanback mode card, tiles for Leanback Mode, Controller mouse, Media Tab Jump and Hover glow, and a Pause everything button",
+      "mockup": true,
+      "accent": "#3b6cf6"
     }
   },
   "upcoming": [
-    {
-      "name": "Toolkit tray app",
-      "note": "One tray icon with a settings panel for every tool"
-    },
     {
       "name": "Window Tab Organizer",
       "note": "For anyone with way too many windows open"

@@ -4,10 +4,14 @@
 > install it is the toolkit's one-file installer, which lets you pick this tool
 > from a menu. The steps below are for installing it on its own from this folder.
 
-Turn on a game controller and your PC switches to **TV mode**: bigger text and
+Turn on a game controller and your PC switches to **Leanback mode**: bigger text and
 apps, a bigger mouse pointer, and the controller works as a mouse. Turn the
 controller off and it goes back to **desktop mode**. The switch happens behind
 a soft blur, so you never see the screen jump around.
+
+If the controller just falls asleep on its own after sitting idle, your PC
+stays in Leanback mode, so you can pick it back up mid-movie. Only switching
+the controller off yourself takes you back to desktop mode.
 
 Made for using a PC on a TV from the couch.
 
@@ -24,7 +28,7 @@ Any controller Windows sees as a game controller, over USB, Bluetooth, or a
 **Tip for 2.4 GHz dongles:** use the dongle's X-input (Xbox) mode if it has
 one. In that mode Windows can tell when the controller itself turns off. In
 other modes some dongles look "connected" as long as they're plugged in, which
-keeps TV mode on (see [If it doesn't work](#if-it-doesnt-work)).
+keeps Leanback mode on (see [If it doesn't work](#if-it-doesnt-work)).
 
 ## Install
 
@@ -44,14 +48,31 @@ replaces it and keeps your settings.
 
 | You do | What happens |
 | --- | --- |
-| Turn the controller on | TV mode, after half a second |
-| Turn the controller off | Desktop mode, about a second later |
-| Press **Ctrl+Alt+T** | Switch between TV and desktop mode any time. Lasts until the controller next turns on or off. |
+| Turn the controller on | Leanback mode, after half a second |
+| Turn the controller off (hold its Home button) | Desktop mode, about a second later |
+| Leave the controller until it falls asleep | Stays in Leanback mode |
+| Press **Ctrl+Alt+T** | Switch between Leanback and desktop mode any time. Lasts until the controller next turns on or off. |
 | Open a game | The controller mouse pauses so the game gets the controller, and comes back when you leave the game. |
 
 Left-click the TV icon in the tray for the menu: switch modes, choose
-Automatic / Always TV / Always desktop, pause the controller mouse, or edit
-settings.
+Automatic / Always Leanback / Always desktop, pause the controller mouse, or edit
+settings. If you use the Windows Unlocked Toolkit tray app, its icon replaces
+this one and all of these settings are in its Leanback Mode page.
+
+### Asleep or switched off?
+
+Windows can't tell a controller that fell asleep from one you switched off;
+both just disappear. So Leanback Mode looks at what happened right before:
+
+- Nothing on the controller was touched for 5 minutes or more: it fell
+  asleep, and Leanback mode stays on.
+- You were using it, or you held its Home / Xbox button to switch it off:
+  back to desktop mode.
+
+To go back to desktop while the controller sleeps, press **Ctrl+Alt+T**. To
+turn this off, set `StayInLeanbackWhenAsleep=false` (or use the switch in the
+toolkit app). For controllers that aren't Xbox-style, "touched" means any
+mouse or keyboard input, including the controller moving the pointer.
 
 ### Controller buttons (as a mouse)
 
@@ -79,10 +100,11 @@ B = Circle, X = Square, Y = Triangle.
 Right-click the tray icon and choose **Edit settings**. Changes apply as soon
 as you save. The file explains each option. The main ones:
 
-- `TvScale` / `NormalScale`: display scaling in each mode (for example 150 and 100).
+- `TvScale` / `NormalScale`: display scaling in Leanback and desktop mode (for example 150 and 100).
 - `TvPointerSize` / `NormalPointerSize`: pointer size in each mode.
 - `Hotkey`: the switch shortcut, for example `Ctrl+Alt+T` or `Win+Alt+M`.
 - `PauseMouseInGames`, `GameFolders`, `NotGames`: when the controller mouse steps aside for games.
+- `StayInLeanbackWhenAsleep`, `AsleepAfterIdleMinutes`: stay in Leanback mode when the controller falls asleep, and how long it must sit untouched to count as asleep (default 5 minutes).
 - `DetectControllers`: `All` (default) or `XInput` for Xbox-style only.
 - `IgnoreControllers`: devices that should never count as a controller.
 
@@ -117,10 +139,11 @@ a free, open-source app (GPL-3.0). It's installed separately and not included he
 ## If it doesn't work
 
 Open `%LOCALAPPDATA%\LeanbackMode\log.txt` (paste that into File Explorer's
-address bar). It says which controller turned TV mode on, for example
+address bar). It says which controller turned Leanback mode on, for example
 `controller turned on: Game controller (0079:0006)`.
 
-- **TV mode stays on with the controller off:** something is still showing
+- **Leanback mode stays on with the controller off:** if the log says the
+  controller "fell asleep", that's on purpose (see above). Otherwise something is still showing
   up as a game controller. That's often a 2.4 GHz dongle that isn't in X-input
   mode, or a device that only looks like a controller. Add the ID from the log to
   `IgnoreControllers` in settings (for example `IgnoreControllers=0079:0006`),

@@ -3,7 +3,7 @@
     Removes Leanback Mode for Windows and its start-at-sign-in entries. Optionally removes AntiMicroX too.
 
 .DESCRIPTION
-    1. Closes Leanback Mode cleanly. If you're in TV mode it switches back to desktop mode first,
+    1. Closes Leanback Mode cleanly. If you're in Leanback mode it switches back to desktop mode first,
        then your normal display scaling and pointer size are re-applied as a safety net.
     2. Stops AntiMicroX and removes both Startup shortcuts, so nothing starts at sign-in.
     3. Deletes %LOCALAPPDATA%\LeanbackMode (the app, its settings and log).

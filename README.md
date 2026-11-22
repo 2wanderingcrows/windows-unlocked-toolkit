@@ -25,11 +25,11 @@
   <img src="https://img.shields.io/badge/price-free-e5487a" alt="Free">
 </p>
 
-<!-- MOCKUP: concept art of the coming tray app. Replace site/assets/hero.svg with a real screenshot (1200x680) when it ships. -->
+<!-- MOCKUP: illustration of the tray app. Replace site/assets/hero.svg with a real screenshot (1200x680). -->
 <p align="center">
   <img src="site/assets/hero.svg" alt="A Windows desktop with the toolkit's tray panel open: a Leanback mode card, tiles for Leanback Mode, Controller mouse, Media Tab Jump and Hover glow, and a Pause everything button">
 </p>
-<p align="center"><sub>Concept art of the toolkit's tray panel, coming soon. Today each tool runs on its own.</sub></p>
+<p align="center"><sub>The toolkit's tray menu (illustration). One icon, every tool.</sub></p>
 
 ## Why you'll like it
 
@@ -84,11 +84,23 @@ flyout into a shortcut straight to the right tab.
 **Perfect for:** tab hoarders, podcast listeners, and anyone who's ever hunted for the tab that started playing an ad.
 [How it works →](tools/mediatabjump)
 
+### 🎛️ Toolkit tray app: every tool, one tidy tray icon
+
+Small helpers are great until you have five tray icons and five settings
+files. The **toolkit tray app** puts every tool behind one icon.
+
+- ✅ Click once to flip between Leanback mode and desktop mode, or turn any tool on or off
+- ✅ Tune controller speed, scrolling and what every button does, without touching a config file
+- ✅ Pick the hover glow's colour, brightness and size, with a live preview
+- ✅ Light or dark, your Windows accent or one of nine colours, three tray icon styles
+- ✅ Pause everything for an hour when you need a plain PC
+
+[How it works →](tools/toolkit)
+
 ### 🛠️ On the workbench
 
 These are being polished and will join the same installer when they're ready:
 
-- **Toolkit tray app**: one tray icon with a settings panel for every tool (glow colors, controller speed, button mapping and more)
 - **Window Tab Organizer**: for anyone with way too many windows open
 - **Claude AutoZoom**: Claude, always at a comfortable size
 - **Startup Minimizer**: sign in to a calm desktop, not a pile of windows
