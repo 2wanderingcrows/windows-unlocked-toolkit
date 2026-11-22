@@ -11,9 +11,9 @@
 </p>
 
 <p align="center">
-  <a href="https://maxsilbert805.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkit.cmd"><b>Download the toolkit</b></a>
+  <a href="https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkit.cmd"><b>Download the toolkit</b></a>
   &nbsp;·&nbsp;
-  <a href="https://maxsilbert805.github.io/windows-unlocked-toolkit">Website</a>
+  <a href="https://2wanderingcrows.github.io/windows-unlocked-toolkit">Website</a>
   &nbsp;·&nbsp;
   <a href="#meet-the-toolkit">See what's inside</a>
 </p>
@@ -93,18 +93,18 @@ These are being polished and will join the same installer when they're ready:
 - **Claude AutoZoom**: Claude, always at a comfortable size
 - **Startup Minimizer**: sign in to a calm desktop, not a pile of windows
 
-Have an idea for a tool? [Open an issue](https://github.com/maxsilbert805/windows-unlocked-toolkit/issues) and say what bugs you.
+Have an idea for a tool? [Open an issue](https://github.com/2wanderingcrows/windows-unlocked-toolkit/issues) and say what bugs you.
 
 ## Install in a minute
 
-1. **Download** [`WindowsUnlockedToolkit.cmd`](https://maxsilbert805.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkit.cmd). It's one small file with every tool inside.
+1. **Download** [`WindowsUnlockedToolkit.cmd`](https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkit.cmd). It's one small file with every tool inside.
 2. **Double-click it.** If Windows says it's from an unknown publisher, choose **More info**, then **Run anyway**. (That warning appears for any file without a paid signing certificate.)
 3. **Pick your tools** from the menu. Run the file again any time and press **U** to uninstall one.
 
 **Prefer the terminal?** Paste this into PowerShell for the same menu:
 
 ```powershell
-irm https://maxsilbert805.github.io/windows-unlocked-toolkit/install.ps1 | iex
+irm https://2wanderingcrows.github.io/windows-unlocked-toolkit/install.ps1 | iex
 ```
 
 **Want just one tool?** Open its folder under [`tools/`](tools), download it,
@@ -145,7 +145,7 @@ them. You can see and pause them in Task Manager under Startup apps.
 <summary><b>Something isn't working. Where do I look?</b></summary>
 
 Each tool keeps a small log in its folder (the tool's own README says where).
-[Open an issue](https://github.com/maxsilbert805/windows-unlocked-toolkit/issues)
+[Open an issue](https://github.com/2wanderingcrows/windows-unlocked-toolkit/issues)
 with the last few lines and it'll get looked at.
 </details>
 
