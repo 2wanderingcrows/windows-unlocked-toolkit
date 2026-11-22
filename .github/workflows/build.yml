@@ -100,26 +100,6 @@ jobs:
           Get-Content (Join-Path $shots 'selftest.txt') -ErrorAction SilentlyContinue
           if ($p.ExitCode -ne 0) { Write-Host "::error::tray app self-test failed (exit $($p.ExitCode))"; exit 1 }
 
-      - name: TEMP print small screenshots for review
-        if: always()
-        shell: powershell
-        run: |
-          Add-Type -AssemblyName System.Drawing
-          $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
-          $ep = New-Object System.Drawing.Imaging.EncoderParameters 1
-          $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality), 60L
-          foreach ($f in Get-ChildItem (Join-Path $env:RUNNER_TEMP 'screenshots') -Filter *.png) {
-            if ($f.Name -like 'icon-*') { continue }
-            $img = [System.Drawing.Image]::FromFile($f.FullName)
-            $k = if ($img.Width -gt 600) { 0.6 } else { 1.0 }
-            $bmp = New-Object System.Drawing.Bitmap ([int]($img.Width * $k)), ([int]($img.Height * $k))
-            $g = [System.Drawing.Graphics]::FromImage($bmp); $g.InterpolationMode = 'HighQualityBicubic'
-            $g.DrawImage($img, 0, 0, $bmp.Width, $bmp.Height); $g.Dispose()
-            $ms = New-Object IO.MemoryStream; $bmp.Save($ms, $codec, $ep)
-            Write-Host ("IMG " + $f.BaseName + " " + [Convert]::ToBase64String($ms.ToArray()))
-            $img.Dispose(); $bmp.Dispose()
-          }
-
       - name: Keep the screenshots with this run
         if: always()
         uses: actions/upload-artifact@v4
