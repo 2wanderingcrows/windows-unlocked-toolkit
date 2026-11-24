@@ -97,12 +97,43 @@ TV on and it gets the Leanback size within a couple of seconds.
 | B | Enter |
 | Y (hold) | Fast pointer |
 | D-pad | Arrow keys |
-| LT / RT | Space / Backspace |
+| LT (tap) / RT | Space / Backspace |
+| LT (hold) | Volume and window switching, see below |
 | LB / RB | Browser back / forward |
 | Start | Windows key (Start menu) |
 | Back / Select | Refresh |
 | Left stick click | Middle click |
 | Right stick click | F11 (full screen) |
+
+### Hold LT for volume and window switching
+
+Hold the left trigger and the controller gets a second layer:
+
+| While holding LT | Does |
+| --- | --- |
+| Right stick up / down | Volume up / down. Tilt a little for fine steps, all the way to move fast. Windows shows its volume bar. |
+| Right stick left / right | Flip through your open windows (like Alt+Tab). Let go of LT to switch to the one picked. |
+| A | Play / pause |
+| B | Mute |
+| LB / RB | Previous / next track |
+
+Everything else works as usual while you hold it, and a quick tap of LT still
+presses Space. In the toolkit app's Leanback Mode page you can pick another
+button to hold (RT, LB or RB), change the volume speed, set what every button
+does in the second layer, or turn it off.
+
+Volume and window switching need an Xbox-style controller (XInput). Most
+8BitDo pads and 2.4 GHz dongles have an X-input mode. With other controllers,
+turn this off in the toolkit app so LT presses Space again.
+
+### Your own buttons and key combos
+
+In the toolkit app's Leanback Mode page, click any button's action to pick
+another one: clicks, Enter, Escape, media keys, **Last window (Alt+Tab)**,
+**All windows (Win+Tab)**, **Show desktop**, **Close tab** and more. Choose
+**Record a key combo** and press any keys, such as Ctrl+Shift+T or Alt+F4, to
+make the button press exactly that. Switch the Buttons card to **Holding LT** to
+set the second layer the same way.
 
 Button names follow the Xbox layout. On a PlayStation pad, A = Cross,
 B = Circle, X = Square, Y = Triangle.
@@ -121,10 +152,13 @@ as you save. The file explains each option. The main ones:
 - `StayInLeanbackWhenAsleep`, `AsleepAfterIdleMinutes`: stay in Leanback mode when the controller falls asleep, and how long it must sit untouched to count as asleep (default 5 minutes).
 - `DetectControllers`: `All` (default) or `XInput` for Xbox-style only.
 - `IgnoreControllers`: devices that should never count as a controller.
+- `LayerTap`: what a quick tap of the layer button presses (default `Space`). Keys like `Ctrl+Shift+T`, `BrowserBack` or `MediaPlayPause`.
+- `VolumeSpeed`: how fast the volume moves with the right stick tilted all the way, in percent per second (default 50).
 
 Pointer speed and button mapping live in the AntiMicroX layout
-(`%LOCALAPPDATA%\antimicrox\profiles\controller-mouse.amgp`). You can edit it
-from the AntiMicroX window.
+(`%LOCALAPPDATA%\antimicrox\profiles\controller-mouse.amgp`). The easiest way
+to change them is the toolkit app; you can also edit it from the AntiMicroX
+window. The second layer is the layout's set 2.
 
 ## Remove
 
@@ -137,6 +171,9 @@ AntiMicroX itself stays installed. To remove it too, run
 
 - It checks every quarter second whether a game controller is connected. It
   doesn't read your keyboard or what you type.
+- While you hold the layer button (LT), it reads the controller's right stick
+  and presses the volume keys, Alt+Tab, or the button's tap key for you. It
+  only does this while the controller mouse is on and no game is in front.
 - It changes Windows display scaling on one screen (your main one unless you
   pick another) and the pointer size, the same settings as in Windows Settings.
 - To tell when you're in a game, it looks at which app is in front and where

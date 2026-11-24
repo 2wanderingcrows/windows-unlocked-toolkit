@@ -55,7 +55,7 @@ namespace UnlockedToolkit
 
     static class Program
     {
-        public const string Version = "1.2";
+        public const string Version = "1.3";
         public const string Site = "https://2wanderingcrows.github.io/windows-unlocked-toolkit/";
         public const string Repo = "https://github.com/2wanderingcrows/windows-unlocked-toolkit";
         public const string ShowEventName = "Local\\WindowsUnlockedToolkit_Show";
@@ -648,11 +648,119 @@ namespace UnlockedToolkit
 
     class MouseAction
     {
-        public string Id, Label, Mode, Code;
+        public string Id, Label, Mode, Code; // Code: one code, or several keys pressed together ("0x1000023,0x1000001")
         public MouseAction(string id, string label, string mode, string code) { Id = id; Label = label; Mode = mode; Code = code; }
     }
 
+    // Keys as AntiMicroX (Qt key codes), Leanback Mode (Windows Forms key names) and people (labels) name them.
+    static class QtKeys
+    {
+        public class Entry { public WF.Keys Key; public long Qt; public string Label, Name; }
+        static readonly List<Entry> all = new List<Entry>();
+
+        static void Add(WF.Keys k, long qt, string label, string name) { all.Add(new Entry { Key = k, Qt = qt, Label = label, Name = name ?? k.ToString() }); }
+
+        static QtKeys()
+        {
+            // Modifiers first: combos are written and shown in this order.
+            Add(WF.Keys.ControlKey, 0x1000021, "Ctrl", "Ctrl");
+            Add(WF.Keys.Menu, 0x1000023, "Alt", "Alt");
+            Add(WF.Keys.ShiftKey, 0x1000020, "Shift", "Shift");
+            Add(WF.Keys.LWin, 0x1000022, "Win", "Win");
+            for (int i = 0; i < 26; i++) Add(WF.Keys.A + i, 0x41 + i, ((char)('A' + i)).ToString(), null);
+            for (int i = 0; i < 10; i++) Add(WF.Keys.D0 + i, 0x30 + i, i.ToString(CultureInfo.InvariantCulture), null);
+            for (int i = 0; i < 10; i++) Add(WF.Keys.NumPad0 + i, 0x30 + i, i.ToString(CultureInfo.InvariantCulture), "D" + i);
+            for (int i = 0; i < 24; i++) Add(WF.Keys.F1 + i, 0x1000030 + i, "F" + (i + 1), null);
+            Add(WF.Keys.Space, 0x20, "Space", null);
+            Add(WF.Keys.Return, 0x1000004, "Enter", "Enter");
+            Add(WF.Keys.Escape, 0x1000000, "Esc", null);
+            Add(WF.Keys.Tab, 0x1000001, "Tab", null);
+            Add(WF.Keys.Back, 0x1000003, "Backspace", null);
+            Add(WF.Keys.Insert, 0x1000006, "Insert", null);
+            Add(WF.Keys.Delete, 0x1000007, "Delete", null);
+            Add(WF.Keys.Pause, 0x1000008, "Pause", null);
+            Add(WF.Keys.PrintScreen, 0x1000009, "Print Screen", null);
+            Add(WF.Keys.Home, 0x1000010, "Home", null);
+            Add(WF.Keys.End, 0x1000011, "End", null);
+            Add(WF.Keys.Left, 0x1000012, "Left", null);
+            Add(WF.Keys.Up, 0x1000013, "Up", null);
+            Add(WF.Keys.Right, 0x1000014, "Right", null);
+            Add(WF.Keys.Down, 0x1000015, "Down", null);
+            Add(WF.Keys.PageUp, 0x1000016, "Page Up", "PageUp");
+            Add(WF.Keys.PageDown, 0x1000017, "Page Down", "PageDown");
+            Add(WF.Keys.CapsLock, 0x1000024, "Caps Lock", null);
+            Add(WF.Keys.Apps, 0x1000055, "Menu", null);
+            Add(WF.Keys.VolumeDown, 0x1000070, "Volume down", null);
+            Add(WF.Keys.VolumeMute, 0x1000071, "Mute", null);
+            Add(WF.Keys.VolumeUp, 0x1000072, "Volume up", null);
+            Add(WF.Keys.MediaPlayPause, 0x1000080, "Play / pause", null);
+            Add(WF.Keys.MediaStop, 0x1000081, "Stop", null);
+            Add(WF.Keys.MediaPreviousTrack, 0x1000082, "Previous track", null);
+            Add(WF.Keys.MediaNextTrack, 0x1000083, "Next track", null);
+            Add(WF.Keys.BrowserBack, 0x1000061, "Browser back", null);
+            Add(WF.Keys.BrowserForward, 0x1000062, "Browser forward", null);
+            Add(WF.Keys.BrowserRefresh, 0x1000064, "Refresh", null);
+            Add(WF.Keys.Oemcomma, 0x2c, ",", null);
+            Add(WF.Keys.OemMinus, 0x2d, "-", null);
+            Add(WF.Keys.OemPeriod, 0x2e, ".", null);
+            Add(WF.Keys.OemQuestion, 0x2f, "/", null);
+            Add(WF.Keys.OemSemicolon, 0x3b, ";", null);
+            Add(WF.Keys.Oemplus, 0x3d, "=", null);
+            Add(WF.Keys.OemOpenBrackets, 0x5b, "[", null);
+            Add(WF.Keys.OemPipe, 0x5c, "\\", null);
+            Add(WF.Keys.OemCloseBrackets, 0x5d, "]", null);
+            Add(WF.Keys.Oemtilde, 0x60, "`", null);
+            Add(WF.Keys.OemQuotes, 0x27, "'", null);
+        }
+
+        public static Entry ByKey(WF.Keys k)
+        {
+            if (k == WF.Keys.LControlKey || k == WF.Keys.RControlKey) k = WF.Keys.ControlKey;
+            if (k == WF.Keys.LMenu || k == WF.Keys.RMenu) k = WF.Keys.Menu;
+            if (k == WF.Keys.LShiftKey || k == WF.Keys.RShiftKey) k = WF.Keys.ShiftKey;
+            if (k == WF.Keys.RWin) k = WF.Keys.LWin;
+            foreach (var e in all) if (e.Key == k) return e;
+            return null;
+        }
+
+        public static Entry ByQt(long qt) { foreach (var e in all) if (e.Qt == qt) return e; return null; }
+
+        public static Entry ByName(string name)
+        {
+            string n = (name ?? "").Trim();
+            string l = n.ToLowerInvariant();
+            if (l == "control" || l == "lcontrolkey" || l == "rcontrolkey" || l == "controlkey") n = "Ctrl";
+            else if (l == "menu" || l == "lmenu" || l == "rmenu") n = "Alt";
+            else if (l == "shiftkey" || l == "lshiftkey" || l == "rshiftkey") n = "Shift";
+            else if (l == "lwin" || l == "rwin" || l == "windows") n = "Win";
+            else if (l == "return") n = "Enter";
+            else if (l == "prior") n = "PageUp";
+            else if (l == "next") n = "PageDown";
+            foreach (var e in all) if (string.Equals(e.Name, n, StringComparison.OrdinalIgnoreCase)) return e;
+            WF.Keys k;
+            if (Enum.TryParse(n, true, out k)) return ByKey(k);
+            return null;
+        }
+
+        static int Rank(long qt) { return qt == 0x1000021 ? 0 : qt == 0x1000023 ? 1 : qt == 0x1000020 ? 2 : qt == 0x1000022 ? 3 : 4; }
+
+        // Modifiers first, in the usual Ctrl, Alt, Shift, Win order; then the rest as given.
+        public static List<long> Sort(IEnumerable<long> codes)
+        {
+            var list = new List<long>();
+            foreach (var c in codes) if (!list.Contains(c)) list.Add(c);
+            var sorted = new List<long>();
+            for (int r = 0; r <= 4; r++) foreach (var c in list) if (Rank(c) == r) sorted.Add(c);
+            return sorted;
+        }
+
+        public static string Hex(long qt) { return "0x" + qt.ToString("x", CultureInfo.InvariantCulture); }
+    }
+
     // Reads and edits the AntiMicroX layout (.amgp, XML). Codes are Qt key codes, mouse buttons 1-5.
+    // Set 1 is the normal layout. With a layer button (LT by default), set 2 is what the buttons do while it's held;
+    // Leanback Mode then uses the right stick for volume and window switching, and presses the button's own
+    // action (LayerTap in its settings) on a quick tap.
     class MouseLayout
     {
         public static readonly MouseAction[] Actions =
@@ -670,7 +778,15 @@ namespace UnlockedToolkit
             new MouseAction("forward", "Browser forward", "keyboard", "0x1000062"),
             new MouseAction("refresh", "Refresh", "keyboard", "0x1000064"),
             new MouseAction("f11", "Full screen (F11)", "keyboard", "0x100003a"),
+            new MouseAction("alttab", "Last window (Alt+Tab)", "keyboard", "0x1000023,0x1000001"),
+            new MouseAction("taskview", "All windows (Win+Tab)", "keyboard", "0x1000022,0x1000001"),
+            new MouseAction("desktop", "Show desktop (Win+D)", "keyboard", "0x1000022,0x44"),
+            new MouseAction("closetab", "Close tab (Ctrl+W)", "keyboard", "0x1000021,0x57"),
+            new MouseAction("reopentab", "Reopen tab (Ctrl+Shift+T)", "keyboard", "0x1000021,0x1000020,0x54"),
+            new MouseAction("closewin", "Close window (Alt+F4)", "keyboard", "0x1000023,0x1000033"),
             new MouseAction("play", "Play / pause", "keyboard", "0x1000080"),
+            new MouseAction("prev", "Previous track", "keyboard", "0x1000082"),
+            new MouseAction("next", "Next track", "keyboard", "0x1000083"),
             new MouseAction("volup", "Volume up", "keyboard", "0x1000072"),
             new MouseAction("voldown", "Volume down", "keyboard", "0x1000070"),
             new MouseAction("mute", "Mute", "keyboard", "0x1000071"),
@@ -685,12 +801,25 @@ namespace UnlockedToolkit
             new[] { "Back", "button:5" }, new[] { "Start", "button:7" }, new[] { "LS", "button:8" }, new[] { "RS", "button:9" }
         };
 
+        // Buttons that can be held for the second layer.
+        public static readonly string[] LayerButtons = { "LT", "RT", "LB", "RB" };
+
+        public static string Where(string button)
+        {
+            foreach (var b in Buttons) if (b[0] == button) return b[1];
+            return null;
+        }
+
         public string FilePath;
         public bool Found;
         public double Speed = 45, Fast = 2.6, Scroll = 15;
         public bool Curve = true;
-        public Dictionary<string, string> Map = new Dictionary<string, string>(); // button -> action id ("custom" if unknown)
+        public string LayerButton;   // null = no layer
+        public Dictionary<string, string> Map = new Dictionary<string, string>();  // set 1: button -> action id, "combo:..." or "custom"
+        public Dictionary<string, string> Map2 = new Dictionary<string, string>(); // set 2 (while the layer button is held)
         XmlDocument doc;
+
+        public bool HasSet2 { get { return doc != null && SetEl(2, false) != null; } }
 
         public static MouseLayout Load(string path)
         {
@@ -711,10 +840,39 @@ namespace UnlockedToolkit
                 if (fast != null) m.Fast = ParseNum(fast.InnerText, 260) / 100.0;
                 var wheel = m.doc.SelectSingleNode("//set[@index='1']/stick[@index='2']/stickbutton[@index='1']/wheelspeedy");
                 if (wheel != null) m.Scroll = ParseNum(wheel.InnerText, 15);
-                foreach (var b in Buttons) m.Map[b[0]] = m.Identify(m.Slots(b[1], false));
+                foreach (var lb in LayerButtons)
+                {
+                    var owner = m.Owner(1, Where(lb), false);
+                    var cond = owner == null ? null : owner.SelectSingleNode("setselectcondition");
+                    if (cond != null && cond.InnerText.Trim() == "while-held") { m.LayerButton = lb; break; }
+                }
+                m.ReadMaps();
             }
             catch (Exception ex) { Log.Write("couldn't read the controller layout: " + ex.Message); m.Found = false; }
             return m;
+        }
+
+        void ReadMaps()
+        {
+            foreach (var b in Buttons)
+            {
+                Map[b[0]] = Identify(Slots(1, b[1], false));
+                if (HasSet2) Map2[b[0]] = Identify(Slots(2, b[1], false));
+            }
+        }
+
+        // Adds set 2 (a copy of set 1, minus the right stick, which Leanback Mode uses while the layer button is held).
+        public void EnsureSet2()
+        {
+            if (doc == null || HasSet2) return;
+            var one = SetEl(1, false);
+            if (one == null) return;
+            var two = (XmlElement)one.CloneNode(true);
+            two.SetAttribute("index", "2");
+            var rs = two.SelectSingleNode("stick[@index='2']");
+            if (rs != null) two.RemoveChild(rs);
+            one.ParentNode.InsertAfter(two, one);
+            foreach (var b in Buttons) Map2[b[0]] = Map.ContainsKey(b[0]) ? Map[b[0]] : "none";
         }
 
         static double ParseNum(string s, double fallback)
@@ -723,7 +881,7 @@ namespace UnlockedToolkit
             return double.TryParse(s.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v) ? v : fallback;
         }
 
-        static long Code(string s)
+        public static long Code(string s)
         {
             s = (s ?? "").Trim();
             long v;
@@ -732,18 +890,86 @@ namespace UnlockedToolkit
             return long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out v) ? v : -1;
         }
 
+        public static List<long> Codes(string list)
+        {
+            var r = new List<long>();
+            foreach (var part in (list ?? "").Split(',')) { long c = Code(part); if (c >= 0) r.Add(c); }
+            return r;
+        }
+
+        static bool SameKeys(List<long> a, List<long> b)
+        {
+            if (a.Count != b.Count) return false;
+            foreach (var c in a) if (!b.Contains(c)) return false;
+            return true;
+        }
+
+        // A list of keys pressed together -> a named action if there is one, else "combo:0x..,0x..".
+        public static string IdForKeys(List<long> keys)
+        {
+            if (keys.Count == 0) return "none";
+            foreach (var a in Actions)
+                if (a.Mode == "keyboard" && SameKeys(Codes(a.Code), keys)) return a.Id;
+            var parts = new List<string>();
+            foreach (var c in QtKeys.Sort(keys)) parts.Add(QtKeys.Hex(c));
+            return "combo:" + string.Join(",", parts);
+        }
+
+        public static MouseAction Find(string id)
+        {
+            foreach (var a in Actions) if (a.Id == id) return a;
+            return null;
+        }
+
+        // The keys an action id presses (empty for clicks, "none" and "custom").
+        public static List<long> KeysOf(string id)
+        {
+            if (id != null && id.StartsWith("combo:")) return Codes(id.Substring(6));
+            var a = Find(id);
+            return a != null && a.Mode == "keyboard" ? Codes(a.Code) : new List<long>();
+        }
+
+        public static string Label(string id)
+        {
+            if (id == "custom") return "Custom";
+            if (id != null && id.StartsWith("combo:"))
+            {
+                var names = new List<string>();
+                foreach (var c in QtKeys.Sort(Codes(id.Substring(6)))) { var e = QtKeys.ByQt(c); names.Add(e != null ? e.Label : "?"); }
+                return string.Join(" + ", names);
+            }
+            var a = Find(id);
+            return a != null ? a.Label : "Nothing";
+        }
+
         string Identify(XmlElement slots)
         {
             if (slots == null) return "none";
             var list = slots.SelectNodes("slot");
             if (list.Count == 0) return "none";
-            if (list.Count > 1) return "custom";
-            var mode = list[0].SelectSingleNode("mode");
-            var code = list[0].SelectSingleNode("code");
-            if (mode == null || code == null) return "custom";
-            foreach (var a in Actions)
-                if (a.Mode == mode.InnerText.Trim() && a.Code.Length > 0 && Code(a.Code) == Code(code.InnerText)) return a.Id;
-            return "custom";
+            var keys = new List<long>();
+            foreach (XmlNode slot in list)
+            {
+                var mode = slot.SelectSingleNode("mode");
+                var code = slot.SelectSingleNode("code");
+                if (mode == null || code == null) return "custom";
+                string md = mode.InnerText.Trim();
+                if (list.Count == 1 && md != "keyboard")
+                {
+                    foreach (var a in Actions)
+                        if (a.Mode == md && a.Code.Length > 0 && Code(a.Code) == Code(code.InnerText)) return a.Id;
+                    return "custom";
+                }
+                if (md != "keyboard") return "custom";
+                keys.Add(Code(code.InnerText));
+            }
+            return IdForKeys(keys);
+        }
+
+        XmlElement SetEl(int set, bool create)
+        {
+            if (doc == null) return null;
+            return doc.SelectSingleNode("/gamecontroller/sets/set[@index='" + set + "']") as XmlElement;
         }
 
         XmlElement El(XmlNode parent, string name, string index, bool create)
@@ -756,15 +982,24 @@ namespace UnlockedToolkit
             return n;
         }
 
-        // The <slots> element of a button ("button:3") or trigger ("trigger:5").
-        XmlElement Slots(string where, bool create)
+        // The element for a button ("button:3") or trigger ("trigger:5") in a set.
+        XmlElement Owner(int setIndex, string where, bool create)
         {
-            var set = doc.SelectSingleNode("/gamecontroller/sets/set[@index='1']") as XmlElement;
-            if (set == null) return null;
+            var set = SetEl(setIndex, false);
+            if (set == null || where == null) return null;
             string[] parts = where.Split(':');
-            XmlElement owner = parts[0] == "trigger"
-                ? El(El(set, "trigger", parts[1], create) ?? set, "triggerbutton", "2", create)
-                : El(set, "button", parts[1], create);
+            if (parts[0] == "trigger")
+            {
+                var trig = El(set, "trigger", parts[1], create);
+                return trig == null ? null : El(trig, "triggerbutton", "2", create);
+            }
+            return El(set, "button", parts[1], create);
+        }
+
+        // The <slots> element of a button or trigger.
+        XmlElement Slots(int setIndex, string where, bool create)
+        {
+            var owner = Owner(setIndex, where, create);
             if (owner == null) return null;
             var slots = owner.SelectSingleNode("slots") as XmlElement;
             if (slots == null && create) { slots = doc.CreateElement("slots"); owner.AppendChild(slots); }
@@ -784,12 +1019,30 @@ namespace UnlockedToolkit
             n.InnerText = value;
         }
 
+        static void RemoveChild(XmlElement parent, string name)
+        {
+            var n = parent.SelectSingleNode(name);
+            if (n != null) parent.RemoveChild(n);
+        }
+
+        void WriteSlots(int setIndex, string where, string id)
+        {
+            if (id == null || id == "custom") return;
+            var slots = Slots(setIndex, where, true);
+            if (slots == null) return;
+            slots.RemoveAll();
+            var a = Find(id);
+            if (a != null && a.Mode.Length > 0 && a.Mode != "keyboard") { slots.AppendChild(MakeSlot(a.Code, a.Mode)); return; }
+            foreach (var c in QtKeys.Sort(KeysOf(id))) slots.AppendChild(MakeSlot(QtKeys.Hex(c), "keyboard"));
+        }
+
         public bool Save()
         {
             if (!Found || doc == null) return false;
             try
             {
-                foreach (XmlElement sb in doc.SelectNodes("//set[@index='1']/stick[@index='1']/stickbutton"))
+                if (LayerButton != null) EnsureSet2();
+                foreach (XmlElement sb in doc.SelectNodes("//set/stick[@index='1']/stickbutton"))
                 {
                     SetChild(sb, "mousespeedx", inv(Math.Round(Speed)));
                     SetChild(sb, "mousespeedy", inv(Math.Round(Speed)));
@@ -798,21 +1051,38 @@ namespace UnlockedToolkit
                 }
                 foreach (XmlElement sb in doc.SelectNodes("//set[@index='1']/stick[@index='2']/stickbutton[@index='1' or @index='5']"))
                     SetChild(sb, "wheelspeedy", inv(Math.Round(Scroll)));
-                var fastSlots = Slots("button:4", true);
-                if (fastSlots != null)
+                for (int set = 1; set <= 2; set++)
                 {
-                    fastSlots.RemoveAll();
-                    fastSlots.AppendChild(MakeSlot(((int)Math.Round(Fast * 100)).ToString(CultureInfo.InvariantCulture), "mousespeedmod"));
-                }
-                foreach (var b in Buttons)
-                {
-                    string id;
-                    if (!Map.TryGetValue(b[0], out id) || id == "custom") continue;
-                    var slots = Slots(b[1], true);
-                    if (slots == null) continue;
-                    slots.RemoveAll();
-                    foreach (var a in Actions)
-                        if (a.Id == id && a.Mode.Length > 0) slots.AppendChild(MakeSlot(a.Code, a.Mode));
+                    if (SetEl(set, false) == null) continue;
+                    var fastSlots = Slots(set, "button:4", true);
+                    if (fastSlots != null)
+                    {
+                        fastSlots.RemoveAll();
+                        fastSlots.AppendChild(MakeSlot(((int)Math.Round(Fast * 100)).ToString(CultureInfo.InvariantCulture), "mousespeedmod"));
+                    }
+                    var map = set == 1 ? Map : Map2;
+                    foreach (var b in Buttons)
+                    {
+                        bool isLayer = b[0] == LayerButton;
+                        bool canLayer = Array.IndexOf(LayerButtons, b[0]) >= 0;
+                        var owner = Owner(set, b[1], isLayer);
+                        if (owner != null && canLayer)
+                        {
+                            if (isLayer)
+                            {
+                                // Held: AntiMicroX switches to set 2 and back. Its tap is pressed by Leanback Mode.
+                                var slots = owner.SelectSingleNode("slots");
+                                if (slots != null) owner.RemoveChild(slots);
+                                SetChild(owner, "setselect", set == 1 ? "2" : "1");
+                                SetChild(owner, "setselectcondition", "while-held");
+                                continue;
+                            }
+                            RemoveChild(owner, "setselect");
+                            RemoveChild(owner, "setselectcondition");
+                        }
+                        string id;
+                        if (map.TryGetValue(b[0], out id)) WriteSlots(set, b[1], id);
+                    }
                 }
                 if (Shell.Demo) return true;
                 if (!File.Exists(FilePath + ".before-toolkit")) File.Copy(FilePath, FilePath + ".before-toolkit"); // your original, once
@@ -821,6 +1091,9 @@ namespace UnlockedToolkit
             }
             catch (Exception ex) { Log.Write("couldn't save the controller layout: " + ex.Message); return false; }
         }
+
+        // Writes the layout somewhere else (the self-test checks a round trip with it).
+        public void SaveAs(string path) { FilePath = path; Save(); doc.Save(path); }
 
         static string inv(double d) { return d.ToString("0.##", CultureInfo.InvariantCulture); }
 
@@ -1120,16 +1393,36 @@ namespace UnlockedToolkit
     {
         readonly LeanVm owner;
         public string Button { get; private set; }
-        public Mapping(LeanVm owner, string button) { this.owner = owner; Button = button; Cycle = new Cmd(Pick); }
-        public string Action { get { return owner.ActionLabel(Button); } }
-        public string Aria { get { return Button + " button: " + Action + ". Change"; } }
+        public int Set { get; private set; } // 1 = normal, 2 = while the layer button is held
+        public Mapping(LeanVm owner, string button, int set) { this.owner = owner; Button = button; Set = set; Cycle = new Cmd(Pick); }
+        public string Action { get { return owner.ActionLabel(Button, Set); } }
+        public bool Recording { get { return owner.RecordingFor == this; } }
+        public bool Locked { get { return Set == 2 && owner.LayerButton == Button; } }
+        public bool Editable { get { return !Locked; } }
+        public string Aria { get { return Button + " button" + (Set == 2 ? " while holding " + owner.LayerButton : "") + ": " + Action + ". Change"; } }
         public ICommand Cycle { get; private set; }
         public void Refresh() { RaiseAll(); }
 
         void Pick()
         {
+            if (Locked) return;
+            if (Recording) { owner.StopRecording(); return; }
             var menu = new ContextMenu();
-            string current = owner.ActionId(Button);
+            string current = owner.ActionId(Button, Set);
+            bool isCombo = current != null && current.StartsWith("combo:");
+            if (isCombo)
+            {
+                var mine = new MenuItem();
+                mine.Header = MouseLayout.Label(current);
+                mine.IsCheckable = true;
+                mine.IsChecked = true;
+                menu.Items.Add(mine);
+            }
+            var record = new MenuItem();
+            record.Header = "Record a key combo\u2026";
+            record.Click += delegate { owner.StartRecording(this); };
+            menu.Items.Add(record);
+            menu.Items.Add(new Separator());
             foreach (var a in MouseLayout.Actions)
             {
                 var item = new MenuItem();
@@ -1137,7 +1430,7 @@ namespace UnlockedToolkit
                 item.IsCheckable = true;
                 item.IsChecked = a.Id == current;
                 string id = a.Id;
-                item.Click += delegate { owner.SetAction(Button, id); };
+                item.Click += delegate { owner.SetAction(Button, Set, id); };
                 menu.Items.Add(item);
             }
             menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
@@ -1164,6 +1457,7 @@ namespace UnlockedToolkit
         bool capturing;
 
         public ObservableCollection<Mapping> Mappings { get; private set; }
+        public ObservableCollection<Mapping> LayerMappings { get; private set; }
         public ObservableCollection<Device> Devices { get; private set; }
         public ObservableCollection<ScreenChip> ScreenChips { get; private set; }
         public ICommand ToggleTv { get; private set; }
@@ -1175,7 +1469,8 @@ namespace UnlockedToolkit
             saveCfg = new Debounce(350, FlushCfg);
             saveLayout = new Debounce(900, FlushLayout);
             Mappings = new ObservableCollection<Mapping>();
-            foreach (var b in MouseLayout.Buttons) Mappings.Add(new Mapping(this, b[0]));
+            LayerMappings = new ObservableCollection<Mapping>();
+            foreach (var b in MouseLayout.Buttons) { Mappings.Add(new Mapping(this, b[0], 1)); LayerMappings.Add(new Mapping(this, b[0], 2)); }
             Devices = new ObservableCollection<Device>();
             ScreenChips = new ObservableCollection<ScreenChip>();
             ToggleTv = new Cmd(shell.ToggleTv);
@@ -1196,7 +1491,7 @@ namespace UnlockedToolkit
         public void LoadLayout(string path)
         {
             layout = MouseLayout.Load(path ?? Amx.Profile);
-            foreach (var m in Mappings) m.Refresh();
+            RefreshMappings();
             RaiseAll();
         }
 
@@ -1416,7 +1711,12 @@ namespace UnlockedToolkit
         public bool Capturing
         {
             get { return capturing; }
-            set { capturing = value; RaiseAll(); }
+            set
+            {
+                capturing = value;
+                if (value && RecordingFor != null) StopRecording();
+                RaiseAll();
+            }
         }
 
         public string[] HotkeyKeys
@@ -1440,6 +1740,7 @@ namespace UnlockedToolkit
         // Called by the settings window while Capturing. Returns true if the key was used.
         public bool OfferKey(Key key, ModifierKeys mods)
         {
+            if (OfferRecording(key, mods)) return true;
             if (!capturing) return false;
             if (key == Key.Escape) { Capturing = false; return true; }
             if (key == Key.LeftCtrl || key == Key.RightCtrl || key == Key.LeftAlt || key == Key.RightAlt ||
@@ -1474,25 +1775,195 @@ namespace UnlockedToolkit
         public bool Curve { get { return layout.Curve; } set { Layout(delegate { layout.Curve = value; }); } }
         public bool PauseGames { get { return Ini.Bool(cfg, "PauseMouseInGames", true); } set { Put("PauseMouseInGames", value ? "true" : "false"); } }
 
-        public string ActionId(string button)
+        public string ActionId(string button) { return ActionId(button, 1); }
+        public string ActionLabel(string button) { return ActionLabel(button, 1); }
+
+        public string ActionId(string button, int set)
         {
+            if (button == layout.LayerButton) return set == 1 ? TapId : "layer";
             string id;
-            return layout.Map.TryGetValue(button, out id) ? id : "none";
+            return (set == 1 ? layout.Map : layout.Map2).TryGetValue(button, out id) ? id : "none";
         }
 
-        public string ActionLabel(string button)
+        public string ActionLabel(string button, int set)
         {
-            string id = ActionId(button);
-            if (id == "custom") return "Custom";
-            foreach (var a in MouseLayout.Actions) if (a.Id == id) return a.Label;
-            return "Nothing";
+            if (RecordingFor != null && RecordingFor.Button == button && RecordingFor.Set == set) return "Press keys\u2026 (Esc cancels)";
+            string id = ActionId(button, set);
+            if (id == "layer") return "Holds this layer";
+            string label = MouseLayout.Label(id);
+            return button == layout.LayerButton ? "Tap: " + label : label;
         }
 
-        public void SetAction(string button, string id)
+        public void SetAction(string button, int set, string id)
         {
-            layout.Map[button] = id;
+            if (set == 1 && button == layout.LayerButton) Put("LayerTap", TapText(id));
+            else
+            {
+                (set == 1 ? layout.Map : layout.Map2)[button] = id;
+                saveLayout.Kick();
+            }
+            RefreshMappings();
+        }
+
+        void RefreshMappings()
+        {
+            foreach (var m in Mappings) m.Refresh();
+            foreach (var m in LayerMappings) m.Refresh();
+        }
+
+        // ---- your own key combos
+
+        public Mapping RecordingFor { get; private set; }
+
+        public void StartRecording(Mapping m)
+        {
+            Capturing = false;
+            RecordingFor = m;
+            RefreshMappings();
+            RaiseAll();
+        }
+
+        public void StopRecording()
+        {
+            RecordingFor = null;
+            RefreshMappings();
+            RaiseAll();
+        }
+
+        bool OfferRecording(Key key, ModifierKeys mods)
+        {
+            if (RecordingFor == null) return false;
+            if (key == Key.Escape && mods == ModifierKeys.None) { StopRecording(); return true; }
+            if (key == Key.LeftCtrl || key == Key.RightCtrl || key == Key.LeftAlt || key == Key.RightAlt ||
+                key == Key.LeftShift || key == Key.RightShift || key == Key.System) return true; // wait for the main key
+            var codes = new List<long>();
+            if ((mods & ModifierKeys.Control) != 0) codes.Add(0x1000021);
+            if ((mods & ModifierKeys.Alt) != 0) codes.Add(0x1000023);
+            if ((mods & ModifierKeys.Shift) != 0) codes.Add(0x1000020);
+            if ((mods & ModifierKeys.Windows) != 0 || key == Key.LWin || key == Key.RWin) codes.Add(0x1000022);
+            if (key != Key.LWin && key != Key.RWin)
+            {
+                var e = QtKeys.ByKey((WF.Keys)KeyInterop.VirtualKeyFromKey(key));
+                if (e == null) return true; // a key AntiMicroX can't press: keep listening
+                codes.Add(e.Qt);
+            }
+            var m = RecordingFor;
+            RecordingFor = null;
+            SetAction(m.Button, m.Set, MouseLayout.IdForKeys(codes));
+            RaiseAll();
+            return true;
+        }
+
+        // ---- hold for more (the controller layer)
+
+        public string LayerButton { get { return layout.LayerButton; } }
+        string TapId { get { return TapToId(C("LayerTap", "Space")); } }
+
+        // Leanback Mode presses the layer button's tap itself, so it's kept in its settings as key names ("Ctrl+Shift+T").
+        public static string TapText(string id)
+        {
+            if (id == "left") return "LeftClick";
+            if (id == "right") return "RightClick";
+            if (id == "middle") return "MiddleClick";
+            var names = new List<string>();
+            foreach (var c in QtKeys.Sort(MouseLayout.KeysOf(id))) { var e = QtKeys.ByQt(c); if (e != null) names.Add(e.Name); }
+            return names.Count > 0 ? string.Join("+", names) : "None";
+        }
+
+        public static string TapToId(string tap)
+        {
+            string t = (tap ?? "").Trim().ToLowerInvariant();
+            if (t == "leftclick") return "left";
+            if (t == "rightclick") return "right";
+            if (t == "middleclick") return "middle";
+            var codes = new List<long>();
+            foreach (var part in (tap ?? "").Split('+'))
+            {
+                if (part.Trim().Length == 0 || part.Trim().Equals("none", StringComparison.OrdinalIgnoreCase)) continue;
+                var e = QtKeys.ByName(part);
+                if (e == null) return "custom";
+                codes.Add(e.Qt);
+            }
+            return MouseLayout.IdForKeys(codes);
+        }
+
+        public bool LayerOn
+        {
+            get { return layout.LayerButton != null; }
+            set { SetLayerButton(value ? C("LayerButton", "LT") : null); }
+        }
+
+        void SetLayerButton(string button)
+        {
+            if (!layout.Found || button == layout.LayerButton) return;
+            string old = layout.LayerButton;
+            string oldTap = TapId;
+            if (button != null)
+            {
+                layout.EnsureSet2();
+                string id = ActionId(button, 1);
+                Put("LayerTap", TapText(id == "custom" ? "space" : id));
+                Put("LayerButton", button);
+            }
+            layout.LayerButton = button;
+            if (old != null)
+            {
+                // The old layer button goes back to doing its tap, in both layers.
+                layout.Map[old] = oldTap;
+                layout.Map2[old] = oldTap;
+            }
             saveLayout.Kick();
-            foreach (var m in Mappings) if (m.Button == button) m.Refresh();
+            ShowLayer = ShowLayer && button != null;
+            RefreshMappings();
+            RaiseAll();
+        }
+
+        public bool LayerLT { get { return layout.LayerButton == "LT"; } set { if (value) SetLayerButton("LT"); } }
+        public bool LayerRT { get { return layout.LayerButton == "RT"; } set { if (value) SetLayerButton("RT"); } }
+        public bool LayerLB { get { return layout.LayerButton == "LB"; } set { if (value) SetLayerButton("LB"); } }
+        public bool LayerRB { get { return layout.LayerButton == "RB"; } set { if (value) SetLayerButton("RB"); } }
+
+        public string LayerHint
+        {
+            get
+            {
+                string b = layout.LayerButton ?? C("LayerButton", "LT");
+                if (!layout.Found) return "Needs the controller layout file. Run the Leanback Mode installer again.";
+                if (layout.LayerButton == null) return "Hold " + b + " and tilt the right stick to change the volume or flip through windows.";
+                return "Hold " + b + ", then tilt the right stick up or down for volume (the further, the faster) or left and right to flip through windows. Let go to pick one. A quick tap of " + b + " still does " + MouseLayout.Label(TapId) + ".";
+            }
+        }
+
+        // Only Xbox-style (XInput) controllers report the right stick to Leanback Mode.
+        public bool LayerWarn
+        {
+            get
+            {
+                if (layout.LayerButton == null) return false;
+                string c = Ini.Get(S.Status, "Controller", "");
+                if (c.Length == 0) c = Ini.Get(S.Status, "LastController", "");
+                return c.Length > 0 && c.IndexOf("XInput", StringComparison.OrdinalIgnoreCase) < 0;
+            }
+        }
+
+        public double VolumeSpeed
+        {
+            get { return Ini.Num(cfg, "VolumeSpeed", 50); }
+            set { int v = (int)(Math.Round(value / 10.0) * 10); Put("VolumeSpeed", v.ToString(CultureInfo.InvariantCulture)); }
+        }
+        public string VolumeSpeedText { get { return VolumeSpeed.ToString("0", CultureInfo.InvariantCulture) + "%/s"; } }
+
+        bool showLayer;
+        public bool ShowLayer { get { return showLayer; } set { showLayer = value && LayerOn; RaiseAll(); } }
+        public bool ShowNormal { get { return !showLayer; } set { if (value) ShowLayer = false; } }
+        public string LayerTabText { get { return "Holding " + (layout.LayerButton ?? "LT"); } }
+        public string ButtonsHint
+        {
+            get
+            {
+                return showLayer ? "What each button does while you hold " + layout.LayerButton + "."
+                                 : "Click an action to change it, or record your own key combo.";
+            }
         }
 
         // ---- controllers
@@ -2646,6 +3117,7 @@ namespace UnlockedToolkit
             w.Closing += delegate(object s, CancelEventArgs e)
             {
                 vm.Lean.Capturing = false;
+                vm.Lean.StopRecording();
                 vm.Lean.Flush();
                 vm.Mtj.Flush();
                 vm.Az.Flush();
@@ -2883,6 +3355,10 @@ namespace UnlockedToolkit
                 shell.Vm.Page = "lean";
                 Save(main, 1100, Path.Combine(outDir, "settings-lean-dark.png"), report);
                 Theme.Mode = "Light"; Theme.AccentKey = "#3B6CF6"; Theme.Apply();
+                shell.Vm.Lean.ShowLayer = true;
+                Save(main, 1100, Path.Combine(outDir, "settings-lean-layer.png"), report);
+                shell.Vm.Lean.ShowLayer = false;
+                if (layoutPath != null && File.Exists(layoutPath)) rc |= CheckLayout(layoutPath, outDir, report);
 
                 var fly = Detach(shell.BuildFlyout());
                 shell.Fvm.Refresh();
@@ -2905,6 +3381,42 @@ namespace UnlockedToolkit
             report.AppendLine(rc == 0 ? "OK" : "FAILED");
             try { File.WriteAllText(Path.Combine(outDir, "selftest.txt"), report.ToString()); } catch { }
             return rc;
+        }
+
+        // Reads the shipped layout, changes buttons, the layer and key combos, saves a copy, and reads it back.
+        static int CheckLayout(string layoutPath, string outDir, StringBuilder report)
+        {
+            var bad = new List<string>();
+            Action<bool, string> expect = delegate(bool ok, string what) { if (!ok) bad.Add(what); };
+            var m = MouseLayout.Load(layoutPath);
+            expect(m.Found, "layout loads");
+            expect(m.LayerButton == "LT", "shipped layout holds LT for the layer (got " + (m.LayerButton ?? "none") + ")");
+            expect(m.Map["A"] == "left" && m.Map2["A"] == "play", "A is left click, and play/pause while holding LT");
+            expect(m.Map["LB"] == "back" && m.Map2["LB"] == "prev", "LB is browser back, previous track while holding LT");
+            var ctrlShiftT = new List<long> { 0x54, 0x1000020, 0x1000021 };
+            expect(MouseLayout.IdForKeys(ctrlShiftT) == "reopentab", "Ctrl+Shift+T is the reopen-tab action");
+            string ctrlK = MouseLayout.IdForKeys(new List<long> { 0x4b, 0x1000021 });
+            expect(ctrlK == "combo:0x1000021,0x4b", "Ctrl+K is a combo (got " + ctrlK + ")");
+            expect(MouseLayout.Label(ctrlK) == "Ctrl + K", "Ctrl+K label (got " + MouseLayout.Label(ctrlK) + ")");
+            expect(LeanVm.TapText("reopentab") == "Ctrl+Shift+T", "tap text (got " + LeanVm.TapText("reopentab") + ")");
+            expect(LeanVm.TapToId("Ctrl+Shift+T") == "reopentab" && LeanVm.TapToId("Space") == "space" && LeanVm.TapToId("BrowserBack") == "back", "tap text reads back");
+            var e = QtKeys.ByKey(WF.Keys.OemMinus);
+            expect(e != null && e.Qt == 0x2d, "minus key");
+
+            m.Map["X"] = ctrlK;
+            m.Map2["Y"] = "alttab";
+            m.Map["LT"] = "space"; m.Map2["LT"] = "space";
+            m.LayerButton = "RB";
+            string copy = Path.Combine(outDir, "layout-roundtrip.amgp");
+            m.SaveAs(copy);
+            var r = MouseLayout.Load(copy);
+            expect(r.LayerButton == "RB", "layer moved to RB (got " + (r.LayerButton ?? "none") + ")");
+            expect(r.Map["X"] == ctrlK, "X keeps Ctrl+K (got " + r.Map["X"] + ")");
+            expect(r.Map2["Y"] == "alttab", "Y while holding is Alt+Tab (got " + r.Map2["Y"] + ")");
+            expect(r.Map["LT"] == "space", "LT is Space again (got " + r.Map["LT"] + ")");
+
+            report.AppendLine(bad.Count == 0 ? "layout round trip OK" : "layout round trip FAILED: " + string.Join("; ", bad));
+            return bad.Count == 0 ? 0 : 1;
         }
 
         // Takes a window's content out so it can be laid out at its full height (windows are limited to the screen).

@@ -27,6 +27,7 @@
 //   --render-backdrop <file.png> [tv|desktop]   save what the overlay looks like, then exit
 //   --preview [tv|desktop]                      play the transition without changing any settings, then exit
 //   --capture-test <file.txt>                   check that screen captures skip the overlay, then exit
+//   --layer-test <layout.amgp> <out.txt> [combo...]  write which button the layout holds for the controller layer
 
 using System;
 using System.Collections.Generic;
@@ -78,6 +79,20 @@ namespace LeanbackMode
                 DisplayScale.ScreenName = s.ScreenName;
                 DisplayScale.Set(s.NormalScale);
                 PointerSize.Set(s.NormalPointerSize);
+                return;
+            }
+            if (args.Length >= 3 && args[0] == "--layer-test")
+            {
+                // Which button the layout holds for the controller layer, and how LayerTap combos are read.
+                var sb = new StringBuilder();
+                sb.AppendLine("layer=" + (Layer.FindButton(args[1]) ?? "none"));
+                for (int i = 3; i < args.Length; i++)
+                {
+                    var names = new List<string>();
+                    foreach (var t in Inject.Parse(args[i])) { Keys k; names.Add(Enum.TryParse(t, true, out k) ? k.ToString() : t); }
+                    sb.AppendLine("tap " + args[i] + "=" + string.Join(",", names));
+                }
+                File.WriteAllText(args[2], sb.ToString());
                 return;
             }
             if (args.Length >= 2 && args[0] == "--render-backdrop")
@@ -228,6 +243,8 @@ namespace LeanbackMode
         public bool ShowTrayIcon = true;        // the Windows Unlocked Toolkit app turns this off and shows its own icon
         public bool StayInLeanbackWhenAsleep = true; // controller went off by itself after sitting idle -> keep Leanback mode
         public double AsleepAfterIdleMinutes = 5;     // idle this long before going off = it fell asleep
+        public string LayerTap = "Space";       // what a quick tap of the layer button does (keys like Ctrl+Shift+T)
+        public int VolumeSpeed = 50;            // controller layer: volume percent per second at full tilt
         public string DetectControllers = "All"; // All | XInput
         public string IgnoreControllers = "";    // VID:PID;VID:PID  (hex, as shown in the log)
         public string AntiMicroXProfile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"antimicrox\profiles\controller-mouse.amgp");
@@ -288,13 +305,15 @@ namespace LeanbackMode
                     case "showtrayicon": s.ShowTrayIcon = !(v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)); break;
                     case "stayinleanbackwhenasleep": s.StayInLeanbackWhenAsleep = !(v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)); break;
                     case "asleepafteridleminutes": if (double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) s.AsleepAfterIdleMinutes = Math.Max(0.5, d); break;
+                    case "layertap": s.LayerTap = v; break;
+                    case "volumespeed": if (int.TryParse(v, out i)) s.VolumeSpeed = Math.Max(10, Math.Min(200, i)); break;
                     case "detectcontrollers": s.DetectControllers = v.Equals("xinput", StringComparison.OrdinalIgnoreCase) ? "XInput" : "All"; break;
                     case "ignorecontrollers": s.IgnoreControllers = v; break;
                     case "antimicroxpath": if (v.Length > 0) s.AntiMicroXPath = v; break;
                     case "antimicroxprofile": if (v.Length > 0) s.AntiMicroXProfile = v; break;
                 }
             }
-            if (!seen.Contains("crossfadems") || !seen.Contains("pausemouseingames") || !seen.Contains("hotkey") || !seen.Contains("detectcontrollers") || !seen.Contains("stayinleanbackwhenasleep") || !seen.Contains("screen")) { try { s.Save(); } catch { } } // add new options to older files
+            if (!seen.Contains("crossfadems") || !seen.Contains("pausemouseingames") || !seen.Contains("hotkey") || !seen.Contains("detectcontrollers") || !seen.Contains("stayinleanbackwhenasleep") || !seen.Contains("screen") || !seen.Contains("layertap")) { try { s.Save(); } catch { } } // add new options to older files
             s.ApplyToController();
             return s;
         }
@@ -347,6 +366,14 @@ namespace LeanbackMode
             sb.AppendLine("# you switching it off (Xbox-style controllers only). StayInLeanbackWhenAsleep=false: always go back to desktop.");
             sb.AppendLine("StayInLeanbackWhenAsleep=" + (StayInLeanbackWhenAsleep ? "true" : "false"));
             sb.AppendLine("AsleepAfterIdleMinutes=" + AsleepAfterIdleMinutes.ToString(CultureInfo.InvariantCulture));
+            sb.AppendLine("#");
+            sb.AppendLine("# Controller layer (Xbox-style controllers). Hold LT (or the button your controller layout holds for its");
+            sb.AppendLine("# second set) and tilt the right stick: up / down changes the volume, the further the faster (VolumeSpeed =");
+            sb.AppendLine("# percent per second at full tilt); left / right flips through open windows, and letting go picks one.");
+            sb.AppendLine("# A quick tap of the button presses LayerTap instead: a key or combo such as Space, Ctrl+Shift+T, MediaPlayPause,");
+            sb.AppendLine("# BrowserBack or LeftClick (Windows Forms key names). Turn the layer on or off in the toolkit app.");
+            sb.AppendLine("LayerTap=" + LayerTap);
+            sb.AppendLine("VolumeSpeed=" + VolumeSpeed);
             sb.AppendLine("#");
             sb.AppendLine("# Transition (milliseconds). SmoothTransition=false switches instantly with no overlay.");
             sb.AppendLine("#   FadeInMs     blur in");
@@ -410,13 +437,13 @@ namespace LeanbackMode
     {
         // 1) XInput: Xbox controllers and pads in "X-input" mode (most 8BitDo pads and dongles, many generic ones).
         [StructLayout(LayoutKind.Sequential)]
-        struct XINPUT_STATE { public uint Packet; public ushort Buttons; public byte LT, RT; public short LX, LY, RX, RY; }
+        public struct XINPUT_STATE { public uint Packet; public ushort Buttons; public byte LT, RT; public short LX, LY, RX, RY; }
         [DllImport("xinput1_4.dll")] static extern uint XInputGetState(uint index, out XINPUT_STATE state);
         // Undocumented export #100 also reports the Home / Xbox (guide) button. Used only to notice it being held
         // to switch the controller off; falls back to the normal call if it's missing.
         [DllImport("xinput1_4.dll", EntryPoint = "#100")] static extern uint XInputGetStateEx(uint index, out XINPUT_STATE state);
-        static bool exMissing;
-        const ushort GUIDE = 0x0400;
+        static volatile bool exMissing;
+        public const ushort GUIDE = 0x0400;
 
         // When a controller was last used (button, trigger or stick), and when its Home button was last pressed.
         // Lets the app tell "fell asleep after sitting idle" apart from "switched off by hand".
@@ -425,7 +452,7 @@ namespace LeanbackMode
         static readonly XINPUT_STATE[] prev = new XINPUT_STATE[4];
         static readonly bool[] hadPrev = new bool[4];
 
-        static uint ReadXInput(uint i, out XINPUT_STATE s)
+        public static uint ReadXInput(uint i, out XINPUT_STATE s)
         {
             if (!exMissing)
             {
@@ -1466,6 +1493,270 @@ namespace LeanbackMode
         }
     }
 
+    // ---------------------------------------------------------------- pressing keys for the controller
+
+    // Presses keys, key combos and mouse buttons as if they came from the keyboard and mouse.
+    static class Inject
+    {
+        [StructLayout(LayoutKind.Sequential)] struct KEYBDINPUT { public ushort wVk, wScan; public uint dwFlags, time; public IntPtr extra; }
+        [StructLayout(LayoutKind.Sequential)] struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr extra; }
+        [StructLayout(LayoutKind.Explicit)] struct INPUTUNION { [FieldOffset(0)] public MOUSEINPUT mi; [FieldOffset(0)] public KEYBDINPUT ki; }
+        [StructLayout(LayoutKind.Sequential)] struct INPUT { public uint type; public INPUTUNION u; }
+        [DllImport("user32.dll")] static extern uint SendInput(uint n, INPUT[] inputs, int size);
+        [DllImport("user32.dll")] static extern uint MapVirtualKey(uint code, uint mapType);
+
+        const uint KEYUP = 0x2, EXTENDED = 0x1;
+
+        static bool IsExtended(Keys k)
+        {
+            switch (k)
+            {
+                case Keys.Insert: case Keys.Delete: case Keys.Home: case Keys.End: case Keys.PageUp: case Keys.PageDown:
+                case Keys.Left: case Keys.Right: case Keys.Up: case Keys.Down: case Keys.RMenu: case Keys.RControlKey:
+                case Keys.LWin: case Keys.RWin: case Keys.Apps: case Keys.NumLock: case Keys.Divide: case Keys.PrintScreen:
+                    return true;
+            }
+            return false;
+        }
+
+        public static void Key(Keys k, bool down)
+        {
+            var inp = new INPUT[1];
+            inp[0].type = 1;
+            inp[0].u.ki.wVk = (ushort)k;
+            inp[0].u.ki.wScan = (ushort)MapVirtualKey((uint)k, 0);
+            inp[0].u.ki.dwFlags = (down ? 0 : KEYUP) | (IsExtended(k) ? EXTENDED : 0);
+            SendInput(1, inp, Marshal.SizeOf(typeof(INPUT)));
+        }
+
+        public static void Tap(Keys k) { Key(k, true); Key(k, false); }
+
+        static void Mouse(uint downFlag)
+        {
+            var inp = new INPUT[2];
+            inp[0].type = 0; inp[0].u.mi.dwFlags = downFlag;
+            inp[1].type = 0; inp[1].u.mi.dwFlags = downFlag << 1; // the matching "up" flag
+            SendInput(2, inp, Marshal.SizeOf(typeof(INPUT)));
+        }
+
+        // "Space", "Ctrl+Shift+T", "MediaPlayPause", "BrowserBack", "LeftClick"... Key names are Windows Forms Keys names.
+        public static List<string> Parse(string combo)
+        {
+            var list = new List<string>();
+            foreach (var raw in (combo ?? "").Split('+'))
+            {
+                string t = raw.Trim();
+                if (t.Length == 0) continue;
+                string l = t.ToLowerInvariant();
+                if (l == "ctrl" || l == "control") t = "LControlKey";
+                else if (l == "alt") t = "LMenu";
+                else if (l == "shift") t = "LShiftKey";
+                else if (l == "win" || l == "windows") t = "LWin";
+                else if (l == "none" || l == "nothing") continue;
+                list.Add(t);
+            }
+            return list;
+        }
+
+        public static void Combo(string combo)
+        {
+            var keys = new List<Keys>();
+            foreach (var t in Parse(combo))
+            {
+                string l = t.ToLowerInvariant();
+                if (l == "leftclick") { Mouse(0x0002); continue; }
+                if (l == "rightclick") { Mouse(0x0008); continue; }
+                if (l == "middleclick") { Mouse(0x0020); continue; }
+                Keys k;
+                if (Enum.TryParse(t, true, out k) && k != Keys.None) keys.Add(k & Keys.KeyCode);
+                else Log.Write("controller layer: unknown key \"" + t + "\" in LayerTap");
+            }
+            foreach (var k in keys) Key(k, true);
+            for (int i = keys.Count - 1; i >= 0; i--) Key(keys[i], false);
+        }
+    }
+
+    // ---------------------------------------------------------------- the controller layer
+
+    // Hold a button (LT unless the layout says otherwise) for a second layer of controls:
+    //   right stick up / down     volume, smoothly: the further you tilt, the faster it moves
+    //   right stick left / right  flip through open windows (Alt+Tab); let go of the button to pick one
+    //   a quick tap                does the button's own job (LayerTap, Space for LT)
+    // AntiMicroX switches its layout to set 2 while the button is held (its other buttons can do other things
+    // there, set from the toolkit app); set 2 leaves the right stick alone so this can use it.
+    // Only Xbox-style (XInput) controllers report the stick here, so the layer needs one of those.
+    class Layer
+    {
+        public volatile bool Active;           // AntiMicroX running with a layout that has a layer button, no game in front
+        public volatile string Button = "LT"; // LT | RT | LB | RB
+        public volatile string Tap = "Space";
+        public volatile int VolumeSpeed = 50;  // volume percent per second at full tilt
+
+        const short STICK_START = 9000, STICK_REST = 7000, SWITCH_START = 16000, SWITCH_REST = 9000;
+        bool held, used, altDown;
+        DateTime heldSince;
+        ushort buttonsAtPress;
+        byte otherTriggerAtPress;
+        int axis;                 // 0 = stick at rest, 1 = volume (up/down), 2 = windows (left/right)
+        double steps;             // volume steps owed (each volume key press moves Windows' volume by 2)
+        DateTime nextFlip;
+        bool loggedError;
+
+        public void Start()
+        {
+            var t = new Thread(Run);
+            t.IsBackground = true;
+            t.Name = "controller layer";
+            t.Start();
+        }
+
+        void Run()
+        {
+            var clock = Stopwatch.StartNew();
+            double last = clock.Elapsed.TotalSeconds;
+            while (true)
+            {
+                double now = clock.Elapsed.TotalSeconds, dt = Math.Min(0.1, now - last);
+                last = now;
+                bool pad = false;
+                try { pad = Step(dt); }
+                catch (Exception ex)
+                {
+                    if (!loggedError) { Log.Write("controller layer: " + ex.Message); loggedError = true; }
+                    Reset();
+                }
+                Thread.Sleep(Active && pad ? (held ? 10 : 25) : 250);
+            }
+        }
+
+        bool IsHeld(Controller.XINPUT_STATE s)
+        {
+            switch (Button)
+            {
+                case "RT": return s.RT > (held ? 25 : 40);
+                case "LB": return (s.Buttons & 0x0100) != 0;
+                case "RB": return (s.Buttons & 0x0200) != 0;
+                default: return s.LT > (held ? 25 : 40);
+            }
+        }
+
+        ushort OwnBit { get { return (ushort)(Button == "LB" ? 0x0100 : Button == "RB" ? 0x0200 : 0); } }
+        byte OtherTrigger(Controller.XINPUT_STATE s) { return Button == "LT" ? s.RT : Button == "RT" ? s.LT : Math.Max(s.LT, s.RT); }
+
+        // Returns whether an Xbox-style controller is connected.
+        bool Step(double dt)
+        {
+            if (!Active) { Reset(); return false; }
+            Controller.XINPUT_STATE cur = new Controller.XINPUT_STATE(), s;
+            bool any = false, down = false;
+            for (uint i = 0; i < 4; i++)
+            {
+                if (Controller.ReadXInput(i, out s) != 0) continue;
+                if (!any) { cur = s; any = true; }
+                if (IsHeld(s)) { cur = s; down = true; break; }
+            }
+            if (!any) { Reset(); return false; }
+
+            if (down && !held)
+            {
+                held = true; used = false; heldSince = DateTime.Now;
+                buttonsAtPress = (ushort)(cur.Buttons & ~Controller.GUIDE);
+                otherTriggerAtPress = OtherTrigger(cur);
+                axis = 0;
+            }
+            else if (!down && held)
+            {
+                held = false;
+                if (altDown) { Inject.Key(Keys.LMenu, false); altDown = false; }
+                else if (!used && (DateTime.Now - heldSince).TotalMilliseconds < 400 && Tap.Length > 0) Inject.Combo(Tap);
+                axis = 0;
+                return true;
+            }
+            if (!held) return true;
+
+            // Anything else pressed during the hold belongs to the layer, so letting go isn't a tap.
+            ushort others = (ushort)(cur.Buttons & ~Controller.GUIDE & ~OwnBit);
+            if ((others & ~buttonsAtPress) != 0 || OtherTrigger(cur) > otherTriggerAtPress + 60) used = true;
+
+            int rx = cur.RX, ry = cur.RY;
+            int ax = Math.Abs(rx), ay = Math.Abs(ry);
+            if (axis == 0)
+            {
+                if (ay >= STICK_START && ay >= ax) { axis = 1; steps = 1; used = true; }      // first step right away
+                else if (ax >= SWITCH_START && ax > ay) { axis = 2; Flip(rx > 0 ? 1 : -1); nextFlip = DateTime.Now.AddMilliseconds(450); used = true; }
+            }
+            else if (axis == 1)
+            {
+                if (ay < STICK_REST) axis = 0;
+                else
+                {
+                    double t = Math.Min(1.0, (ay - STICK_START) / (32767.0 - STICK_START));
+                    if (t < 0) t = 0;
+                    double pctPerSec = 6 + (Math.Max(10, VolumeSpeed) - 6) * t * t;
+                    steps += pctPerSec / 2.0 * dt;
+                    int dir = ry > 0 ? 1 : -1;
+                    int n = 0;
+                    while (steps >= 1 && n < 4) { Inject.Tap(dir > 0 ? Keys.VolumeUp : Keys.VolumeDown); steps -= 1; n++; }
+                }
+            }
+            else if (axis == 2)
+            {
+                if (ax < SWITCH_REST) axis = 0;
+                else if (DateTime.Now >= nextFlip) { Flip(rx > 0 ? 1 : -1); nextFlip = DateTime.Now.AddMilliseconds(170); }
+            }
+            return true;
+        }
+
+        // Alt stays down for as long as the layer button is held, so Windows' window switcher stays open.
+        void Flip(int dir)
+        {
+            if (!altDown) { Inject.Key(Keys.LMenu, true); altDown = true; }
+            if (dir < 0) Inject.Key(Keys.LShiftKey, true);
+            Inject.Tap(Keys.Tab);
+            if (dir < 0) Inject.Key(Keys.LShiftKey, false);
+        }
+
+        // Leanback Mode is closing: never leave Alt held down.
+        public void Shutdown()
+        {
+            Active = false;
+            if (altDown) { try { Inject.Key(Keys.LMenu, false); } catch { } altDown = false; }
+        }
+
+        void Reset()
+        {
+            if (altDown) { try { Inject.Key(Keys.LMenu, false); } catch { } altDown = false; }
+            held = false; axis = 0;
+        }
+
+        // Which button the AntiMicroX layout holds for set 2 (null = none). Plain text search: no XML library needed.
+        public static string FindButton(string profile)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(profile) || !File.Exists(profile)) return null;
+                string xml = File.ReadAllText(profile);
+                var set = System.Text.RegularExpressions.Regex.Match(xml, "<set index=\"1\">(.*?)</set>", System.Text.RegularExpressions.RegexOptions.Singleline);
+                if (!set.Success) return null;
+                string[][] candidates =
+                {
+                    new[] { "LT", "<trigger index=\"5\">", "</trigger>" }, new[] { "RT", "<trigger index=\"6\">", "</trigger>" },
+                    new[] { "LB", "<button index=\"10\">", "</button>" }, new[] { "RB", "<button index=\"11\">", "</button>" }
+                };
+                foreach (var c in candidates)
+                {
+                    int a = set.Groups[1].Value.IndexOf(c[1], StringComparison.Ordinal);
+                    if (a < 0) continue;
+                    int b = set.Groups[1].Value.IndexOf(c[2], a, StringComparison.Ordinal);
+                    if (b < 0) continue;
+                    if (set.Groups[1].Value.Substring(a, b - a).Contains("<setselectcondition>while-held</setselectcondition>")) return c[0];
+                }
+            }
+            catch { }
+            return null;
+        }
+    }
+
     // ---------------------------------------------------------------- global keyboard shortcut
 
     // Listens for a system-wide shortcut such as "Ctrl+Alt+T" (works whichever app is in front).
@@ -1574,6 +1865,10 @@ namespace LeanbackMode
         DateTime gameRawSince = DateTime.Now;
         string pausedFor;
 
+        readonly Layer layer = new Layer();
+        DateTime layerChecked = DateTime.MinValue, profileTime = DateTime.MinValue;
+        string profileLayer;
+
         public TrayApp()
         {
             invoker.CreateControl();
@@ -1638,6 +1933,8 @@ namespace LeanbackMode
             poll.Interval = 250;
             poll.Tick += delegate { Tick(); };
             poll.Start();
+            UpdateLayer();
+            layer.Start();
 
             // A screen was plugged in, unplugged, switched on or off (a TV usually disappears when it's off):
             // if that changes which screen Leanback mode is for, apply the current mode to it.
@@ -1802,6 +2099,7 @@ namespace LeanbackMode
                 if (!MouseMapper.IsRunning()) return; // you quit it yourself: leave it off
                 MouseMapper.Stop();
                 mousePausedByUs = true;
+                UpdateLayer();
                 pausedFor = game;
                 Log.Write("controller mouse paused: " + game + " is in front");
                 UpdateUi();
@@ -1816,6 +2114,7 @@ namespace LeanbackMode
         {
             string err = MouseMapper.Start(settings);
             mousePausedByUs = false;
+            UpdateLayer();
             Log.Write("controller mouse resumed (" + why + ")" + (err != null ? "; failed to start AntiMicroX: " + err : ""));
             UpdateUi();
         }
@@ -1825,6 +2124,7 @@ namespace LeanbackMode
         void Tick()
         {
             GameTick();
+            if ((DateTime.Now - layerChecked).TotalSeconds >= 1.5) UpdateLayer();
             string found = Controller.Find();
             bool now = found != null;
             if (now) lastFound = found;
@@ -1852,6 +2152,27 @@ namespace LeanbackMode
                 pendingReason = asleepHold ? null : "controller";
                 Apply(false);
             }
+        }
+
+        // The controller layer is on while AntiMicroX runs a layout with a layer button and no game is in front.
+        void UpdateLayer()
+        {
+            layerChecked = DateTime.Now;
+            try
+            {
+                DateTime t = File.Exists(settings.AntiMicroXProfile) ? File.GetLastWriteTimeUtc(settings.AntiMicroXProfile) : DateTime.MinValue;
+                if (t != profileTime) { profileTime = t; profileLayer = Layer.FindButton(settings.AntiMicroXProfile); }
+                layer.Button = profileLayer ?? "LT";
+                layer.Tap = settings.LayerTap;
+                layer.VolumeSpeed = settings.VolumeSpeed;
+                bool active = profileLayer != null && !mousePausedByUs && MouseMapper.IsRunning();
+                if (active != layer.Active)
+                {
+                    layer.Active = active;
+                    Log.Write(active ? "controller layer on: hold " + profileLayer + " for volume and window switching" : "controller layer off");
+                }
+            }
+            catch (Exception ex) { Log.Write("controller layer check failed: " + ex.Message); }
         }
 
         // Idle time just before the controller disappeared. XInput pads report their own buttons and sticks;
@@ -2130,6 +2451,7 @@ namespace LeanbackMode
 
         void Quit()
         {
+            layer.Shutdown();
             if (mousePausedByUs) ResumeMouse("Leanback Mode closing"); // never leave the controller mouse off
             try { File.Delete(Path.Combine(Settings.Dir, "status.ini")); } catch { }
             if (hotkey != null) hotkey.Dispose();

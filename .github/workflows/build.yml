@@ -100,6 +100,23 @@ jobs:
           Get-Content (Join-Path $shots 'selftest.txt') -ErrorAction SilentlyContinue
           if ($p.ExitCode -ne 0) { Write-Host "::error::tray app self-test failed (exit $($p.ExitCode))"; exit 1 }
 
+      - name: Check Leanback Mode finds the controller layer in the layouts
+        shell: powershell
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'bin\LeanbackMode.exe'
+          $shots = Join-Path $env:RUNNER_TEMP 'screenshots'
+          $bad = 0
+          $cases = @(@((Resolve-Path 'tools\leanback\controller-mouse.amgp').Path, 'LT'), @((Join-Path $shots 'layout-roundtrip.amgp'), 'RB'))
+          foreach ($c in $cases) {
+            $out = Join-Path $env:RUNNER_TEMP 'layer-test.txt'
+            Start-Process -FilePath $exe -ArgumentList '--layer-test', "`"$($c[0])`"", "`"$out`"", 'Space', 'Ctrl+Shift+T', 'BrowserBack' -Wait
+            $text = Get-Content $out -Raw
+            Write-Host $text
+            if ($text -notmatch "layer=$($c[1])") { Write-Host "::error::expected layer=$($c[1]) for $($c[0])"; $bad++ }
+            if ($text -notmatch 'tap Ctrl\+Shift\+T=LControlKey,LShiftKey,T') { Write-Host '::error::LayerTap combos not read as expected'; $bad++ }
+          }
+          if ($bad) { exit 1 }
+
       - name: Keep the screenshots with this run
         if: always()
         uses: actions/upload-artifact@v4
