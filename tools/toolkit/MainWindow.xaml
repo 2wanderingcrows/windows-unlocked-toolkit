@@ -282,12 +282,19 @@
                     <TextBlock Text="Pointer speed" Style="{StaticResource Label}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
-                <Border Padding="18,8">
-                  <DockPanel>
-                    <TextBlock DockPanel.Dock="Right" Text="{Binding FastText}" Style="{StaticResource Value}" Width="44"/>
-                    <Slider DockPanel.Dock="Right" Style="{StaticResource Range}" Width="140" Minimum="1.5" Maximum="4" TickFrequency="0.1" Value="{Binding Fast, Mode=TwoWay}" AutomationProperties.Name="Fast pointer speed"/>
-                    <TextBlock Text="Fast pointer (hold Y)" Style="{StaticResource Label}" VerticalAlignment="Center"/>
-                  </DockPanel>
+                <!-- Fast pointer gets a little spotlight: it's the trick that makes big screens easy. -->
+                <Border Margin="10,6" Padding="8,10" CornerRadius="10" Background="{DynamicResource Soft}">
+                  <StackPanel>
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Right" Text="{Binding FastText}" Style="{StaticResource Value}" Width="44"/>
+                      <Slider DockPanel.Dock="Right" Style="{StaticResource Range}" Width="140" Minimum="1.5" Maximum="4" TickFrequency="0.1" Value="{Binding Fast, Mode=TwoWay}" AutomationProperties.Name="Fast pointer speed, while holding Y"/>
+                      <Border DockPanel.Dock="Left" Width="24" Height="24" CornerRadius="12" Background="{DynamicResource Accent}" VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="Y" FontSize="12.5" FontWeight="Bold" Foreground="{DynamicResource AccentInk}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                      </Border>
+                      <TextBlock Text="Fast pointer" Style="{StaticResource Label}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <TextBlock Text="Hold Y to zip across a TV or ultrawide in a blink. Let go for precise aiming." Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="34,4,0,0"/>
+                  </StackPanel>
                 </Border>
                 <Border Padding="18,8,18,12">
                   <DockPanel>

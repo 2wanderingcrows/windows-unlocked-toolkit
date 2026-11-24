@@ -60,6 +60,7 @@ up a controller and rearranges Windows for the couch.
 - ✅ Controller dozed off mid-movie? You stay in Leanback mode until you turn it off yourself
 - ✅ Bigger text and a pointer you can actually see from across the room
 - ✅ Sticks move and scroll, buttons click, go back and open Start
+- ✅ **Hold Y for a fast pointer** that zips across a big TV or ultrawide in a blink, then let go for precise aiming
 - ✅ Hold LT and tilt the right stick to glide the volume up or down, or flip through your windows
 - ✅ Remap any button, or record your own key combos, right from the tray app
 - ✅ Steps aside on its own when you launch a game

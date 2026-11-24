@@ -95,7 +95,7 @@ TV on and it gets the Leanback size within a couple of seconds.
 | A | Left click |
 | X | Right click |
 | B | Enter |
-| Y (hold) | Fast pointer |
+| **Y (hold)** | **Fast pointer** (see the tip below) |
 | D-pad | Arrow keys |
 | LT (tap) / RT | Space / Backspace |
 | LT (hold) | Volume and window switching, see below |
@@ -104,6 +104,11 @@ TV on and it gets the Leanback size within a couple of seconds.
 | Back / Select | Refresh |
 | Left stick click | Middle click |
 | Right stick click | F11 (full screen) |
+
+> **Tip: hold Y for the fast pointer.** On a TV or an ultrawide monitor the
+> pointer has a long way to travel. Hold **Y** and it moves about three times as
+> fast, so it crosses the whole screen in a blink; let go and it's back to
+> precise. Set how fast in the toolkit app (Leanback Mode > Controller as mouse).
 
 ### Hold LT for volume and window switching
 
