@@ -848,8 +848,16 @@ namespace UnlockedToolkit
                 }
                 m.ReadMaps();
             }
-            catch (Exception ex) { Log.Write("couldn't read the controller layout: " + ex.Message); m.Found = false; }
+            catch (Exception ex) { Log.Write("couldn't read the controller layout: " + ex.Message); m.Found = false; m.Error = ex.ToString(); }
             return m;
+        }
+
+        public string Error; // why the layout couldn't be read (self-test)
+
+        public string Get(int set, string button)
+        {
+            string id;
+            return (set == 1 ? Map : Map2).TryGetValue(button, out id) ? id : "(missing)";
         }
 
         void ReadMaps()
@@ -3389,10 +3397,11 @@ namespace UnlockedToolkit
             var bad = new List<string>();
             Action<bool, string> expect = delegate(bool ok, string what) { if (!ok) bad.Add(what); };
             var m = MouseLayout.Load(layoutPath);
-            expect(m.Found, "layout loads");
+            expect(m.Found, "layout loads" + (m.Error != null ? ": " + m.Error : ""));
+            report.AppendLine("layout: set 2 " + (m.HasSet2 ? "found" : "missing") + ", layer " + (m.LayerButton ?? "none") + ", " + m.Map.Count + "/" + m.Map2.Count + " buttons");
             expect(m.LayerButton == "LT", "shipped layout holds LT for the layer (got " + (m.LayerButton ?? "none") + ")");
-            expect(m.Map["A"] == "left" && m.Map2["A"] == "play", "A is left click, and play/pause while holding LT");
-            expect(m.Map["LB"] == "back" && m.Map2["LB"] == "prev", "LB is browser back, previous track while holding LT");
+            expect(m.Get(1, "A") == "left" && m.Get(2, "A") == "play", "A is left click, and play/pause while holding LT");
+            expect(m.Get(1, "LB") == "back" && m.Get(2, "LB") == "prev", "LB is browser back, previous track while holding LT");
             var ctrlShiftT = new List<long> { 0x54, 0x1000020, 0x1000021 };
             expect(MouseLayout.IdForKeys(ctrlShiftT) == "reopentab", "Ctrl+Shift+T is the reopen-tab action");
             string ctrlK = MouseLayout.IdForKeys(new List<long> { 0x4b, 0x1000021 });
@@ -3410,10 +3419,11 @@ namespace UnlockedToolkit
             string copy = Path.Combine(outDir, "layout-roundtrip.amgp");
             m.SaveAs(copy);
             var r = MouseLayout.Load(copy);
+            expect(r.Found, "copy loads" + (r.Error != null ? ": " + r.Error : ""));
             expect(r.LayerButton == "RB", "layer moved to RB (got " + (r.LayerButton ?? "none") + ")");
-            expect(r.Map["X"] == ctrlK, "X keeps Ctrl+K (got " + r.Map["X"] + ")");
-            expect(r.Map2["Y"] == "alttab", "Y while holding is Alt+Tab (got " + r.Map2["Y"] + ")");
-            expect(r.Map["LT"] == "space", "LT is Space again (got " + r.Map["LT"] + ")");
+            expect(r.Get(1, "X") == ctrlK, "X keeps Ctrl+K (got " + r.Get(1, "X") + ")");
+            expect(r.Get(2, "Y") == "alttab", "Y while holding is Alt+Tab (got " + r.Get(2, "Y") + ")");
+            expect(r.Get(1, "LT") == "space", "LT is Space again (got " + r.Get(1, "LT") + ")");
 
             report.AppendLine(bad.Count == 0 ? "layout round trip OK" : "layout round trip FAILED: " + string.Join("; ", bad));
             return bad.Count == 0 ? 0 : 1;
