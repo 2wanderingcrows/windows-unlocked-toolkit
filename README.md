@@ -84,6 +84,24 @@ flyout into a shortcut straight to the right tab.
 **Perfect for:** tab hoarders, podcast listeners, and anyone who's ever hunted for the tab that started playing an ad.
 [How it works →](tools/mediatabjump)
 
+### 🔍 AutoZoom: every app at a comfortable size
+
+<!-- MOCKUP: illustration. Replace site/assets/autozoom.svg with a real screenshot (1200x640) when one exists. -->
+<img src="site/assets/autozoom.svg" alt="The same app shown twice: maximized with larger text, and in a smaller window with text sized to fit">
+
+An app that looks great full-screen can feel cramped in half the screen, and
+the other way round. **AutoZoom** lets you pick how zoomed in each app is when
+its window is maximized and when it isn't, and switches by itself as you resize.
+
+- ✅ Any app that zooms with Ctrl and +: Claude, Teams, Discord, Slack, VS Code, Notepad, browsers
+- ✅ Two levels per app: one for maximized, one for everything else
+- ✅ Each window keeps its own zoom, so two windows of the same app never fight
+- ✅ Add apps and set their zoom from the tray app, with changes applied instantly
+- ✅ Never reads the screen or what you type: it only presses the app's own zoom keys
+
+**Perfect for:** anyone who snaps windows side by side, switches between a laptop screen and a big monitor, or runs two accounts of the same app.
+[How it works →](tools/autozoom)
+
 ### 🎛️ Toolkit tray app: every tool, one tidy tray icon
 
 Small helpers are great until you have five tray icons and five settings
@@ -92,6 +110,7 @@ files. The **toolkit tray app** puts every tool behind one icon.
 - ✅ Click once to flip between Leanback mode and desktop mode, or turn any tool on or off
 - ✅ Tune controller speed, scrolling and what every button does, without touching a config file
 - ✅ Pick the hover glow's colour, brightness and size, with a live preview
+- ✅ Choose which apps AutoZoom handles and how big each one gets
 - ✅ Light or dark, your Windows accent or one of nine colours, three tray icon styles
 - ✅ Pause everything for an hour when you need a plain PC
 
@@ -102,7 +121,6 @@ files. The **toolkit tray app** puts every tool behind one icon.
 These are being polished and will join the same installer when they're ready:
 
 - **Window Tab Organizer**: for anyone with way too many windows open
-- **Claude AutoZoom**: Claude, always at a comfortable size
 - **Startup Minimizer**: sign in to a calm desktop, not a pile of windows
 
 Have an idea for a tool? [Open an issue](https://github.com/2wanderingcrows/windows-unlocked-toolkit/issues) and say what bugs you.

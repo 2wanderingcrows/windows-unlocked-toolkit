@@ -6,14 +6,15 @@
 One icon in the system tray for the whole toolkit.
 
 - **Click the icon** for quick switches: Leanback mode or desktop mode, and
-  on/off tiles for Leanback Mode, the controller mouse, Media Tab Jump and its
-  hover glow. There's also **Pause everything for 1 hour**.
+  on/off tiles for Leanback Mode, the controller mouse, Media Tab Jump, its
+  hover glow, and AutoZoom. There's also **Pause everything for 1 hour**.
 - **Open settings** for a page per tool:
   - **Leanback Mode:** when to use Leanback mode, how big everything gets, pointer size,
     the switch shortcut, staying in Leanback mode when the controller falls asleep,
     pointer and scroll speed, what each controller button does, and which
     controllers count.
   - **Media Tab Jump:** the hover glow's colour, brightness and size, with a live preview.
+  - **AutoZoom:** which apps it zooms, and how many steps each one gets when maximized and when not.
   - **Appearance:** light or dark, an accent colour (or your Windows accent), and the tray icon's style.
   - **Updates and about:** start with Windows, the website, source code and logs.
 
@@ -43,6 +44,7 @@ at sign-in, and Leanback Mode shows its own tray icon again.
   - Controller mouse: the AntiMicroX layout `%LOCALAPPDATA%\antimicrox\profiles\controller-mouse.amgp`.
     Your original is kept once as `controller-mouse.amgp.before-toolkit`.
   - Media Tab Jump: `%LOCALAPPDATA%\MediaTabJump\settings.ini` and `glow-off.txt`
+  - AutoZoom: `%LOCALAPPDATA%\AutoZoom\settings.ini`
 - Turning a tool off stops it and moves its sign-in entry to
   `%LOCALAPPDATA%\WindowsUnlockedToolkit\turned-off`, so it stays off after a
   restart. Turning it on puts the entry back.

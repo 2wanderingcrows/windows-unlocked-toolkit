@@ -1,7 +1,7 @@
 // Windows Unlocked Toolkit  (tray app)
 // ---------------------------------------------------------------------------
 // One icon in the system tray for every tool in the toolkit:
-//   - left-click: a small menu with quick switches (Leanback mode, controller mouse, Media Tab Jump, glow)
+//   - left-click: a small menu with quick switches (Leanback mode, controller mouse, Media Tab Jump, glow, AutoZoom)
 //   - "Open settings": a window with a page per tool, plus appearance and updates
 //
 // The tools keep running as their own small background apps, so a problem in one can't take down the
@@ -9,6 +9,7 @@
 //   Leanback Mode    %LOCALAPPDATA%\LeanbackMode\settings.ini (it reloads on save), status.ini (it writes)
 //   Controller mouse %LOCALAPPDATA%\antimicrox\profiles\controller-mouse.amgp (AntiMicroX layout)
 //   Media Tab Jump   %LOCALAPPDATA%\MediaTabJump\settings.ini and glow-off.txt
+//   AutoZoom         %LOCALAPPDATA%\AutoZoom\settings.ini (it reloads on save)
 // Its own settings and log are in %LOCALAPPDATA%\WindowsUnlockedToolkit.
 // Nothing here goes online. "Get the latest version" and the GitHub buttons just open your browser.
 //
@@ -54,7 +55,7 @@ namespace UnlockedToolkit
 
     static class Program
     {
-        public const string Version = "1.0";
+        public const string Version = "1.1";
         public const string Site = "https://2wanderingcrows.github.io/windows-unlocked-toolkit/";
         public const string Repo = "https://github.com/2wanderingcrows/windows-unlocked-toolkit";
         public const string ShowEventName = "Local\\WindowsUnlockedToolkit_Show";
@@ -147,6 +148,10 @@ namespace UnlockedToolkit
         public static string MtjExe { get { return Path.Combine(MtjDir, "MediaTabJump.exe"); } }
         public static string MtjSettings { get { return Path.Combine(MtjDir, "settings.ini"); } }
         public static string MtjGlowOff { get { return Path.Combine(MtjDir, "glow-off.txt"); } }
+
+        public static string AzDir { get { return Path.Combine(Local, "AutoZoom"); } }
+        public static string AzExe { get { return Path.Combine(AzDir, "AutoZoom.exe"); } }
+        public static string AzSettings { get { return Path.Combine(AzDir, "settings.ini"); } }
     }
 
     static class Log
@@ -458,12 +463,22 @@ namespace UnlockedToolkit
         public static void Stop() { Procs.Kill("MediaTabJump"); }
     }
 
+    static class Az
+    {
+        public const string RunName = "AutoZoom";
+        public static bool Installed { get { return File.Exists(P.AzExe); } }
+        public static bool Enabled { get { return !Startup.RunParked(RunName); } }
+        public static void Start() { Procs.Start(P.AzExe, ""); }
+        public static void Stop() { Procs.Kill("AutoZoom"); }
+    }
+
     // What the tools are doing right now. Built by Shell.Refresh about once a second.
     class Snap
     {
         public bool LeanInstalled, LeanRunning, LeanEnabled;
         public bool AmxInstalled, AmxRunning, AmxEnabled;
         public bool MtjInstalled, MtjRunning, MtjEnabled, GlowOn;
+        public bool AzInstalled, AzRunning, AzEnabled;
         public Dictionary<string, string> Status = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         public bool Tv { get { return LeanRunning && Ini.Get(Status, "Mode", "") == "TV"; } }
@@ -473,7 +488,8 @@ namespace UnlockedToolkit
         {
             var sb = new StringBuilder();
             sb.Append(LeanInstalled).Append(LeanRunning).Append(LeanEnabled).Append(AmxInstalled).Append(AmxRunning).Append(AmxEnabled)
-              .Append(MtjInstalled).Append(MtjRunning).Append(MtjEnabled).Append(GlowOn);
+              .Append(MtjInstalled).Append(MtjRunning).Append(MtjEnabled).Append(GlowOn)
+              .Append(AzInstalled).Append(AzRunning).Append(AzEnabled);
             foreach (var kv in Status) sb.Append('|').Append(kv.Key).Append('=').Append(kv.Value);
             return sb.ToString();
         }
@@ -1415,6 +1431,258 @@ namespace UnlockedToolkit
         public string SizeText { get { return Size.ToString("0", CultureInfo.InvariantCulture) + "%"; } }
     }
 
+    // ------------------------------------------------------------------ AutoZoom page
+
+    // One app on the AutoZoom list: how many zoom steps it gets when maximized and when not.
+    class AzApp : Obs
+    {
+        const int Limit = 15;
+        static readonly string[][] Tiles =
+        {
+            new[] { "#D98E04", "#B5452A" }, new[] { "#3B6CF6", "#7C5CFF" }, new[] { "#16A37B", "#0B5F6E" },
+            new[] { "#FF8A5B", "#E5487A" }, new[] { "#5AB8FF", "#3B6CF6" }, new[] { "#BC82F3", "#7B4DFF" }
+        };
+
+        readonly AzVm owner;
+        int max, normal;
+        public string ProcName { get; private set; }
+        public string Name { get; private set; }
+
+        public AzApp(AzVm owner, string procName, string name, int max, int normal)
+        {
+            this.owner = owner;
+            ProcName = procName;
+            Name = name;
+            this.max = Clamp(max);
+            this.normal = Clamp(normal);
+            MaxDown = new Cmd(delegate { Max = this.max - 1; });
+            MaxUp = new Cmd(delegate { Max = this.max + 1; });
+            NormalDown = new Cmd(delegate { Normal = this.normal - 1; });
+            NormalUp = new Cmd(delegate { Normal = this.normal + 1; });
+            Remove = new Cmd(delegate { owner.RemoveApp(this); });
+        }
+
+        static int Clamp(int v) { return Math.Max(-Limit, Math.Min(Limit, v)); }
+
+        public int Max
+        {
+            get { return max; }
+            set { int v = Clamp(value); if (v == max) return; max = v; RaiseAll(); owner.Changed(); }
+        }
+
+        public int Normal
+        {
+            get { return normal; }
+            set { int v = Clamp(value); if (v == normal) return; normal = v; RaiseAll(); owner.Changed(); }
+        }
+
+        public string Meta { get { return ProcName + ".exe"; } }
+        public string Mono { get { return Name.Length > 0 ? Name.Substring(0, 1).ToUpperInvariant() : "?"; } }
+        public string MaxText { get { return Steps(max); } }
+        public string NormalText { get { return Steps(normal); } }
+        public string MaxAria { get { return Name + " when maximized: " + Spoken(max); } }
+        public string NormalAria { get { return Name + " when not maximized: " + Spoken(normal); } }
+
+        public Brush Tile
+        {
+            get
+            {
+                int h = 0;
+                foreach (char c in ProcName.ToLowerInvariant()) h = (h * 31 + c) & 0x7FFFFFFF;
+                var t = Tiles[h % Tiles.Length];
+                return Theme.Gradient(Theme.Parse(t[0], Colors.Gray), Theme.Parse(t[1], Colors.Black));
+            }
+        }
+
+        static string Steps(int s) { return s == 0 ? "100%" : s.ToString("+0;-0", CultureInfo.InvariantCulture); }
+        static string Spoken(int s) { return s == 0 ? "normal size" : Math.Abs(s) + (Math.Abs(s) == 1 ? " step " : " steps ") + (s > 0 ? "bigger" : "smaller"); }
+
+        public ICommand MaxDown { get; private set; }
+        public ICommand MaxUp { get; private set; }
+        public ICommand NormalDown { get; private set; }
+        public ICommand NormalUp { get; private set; }
+        public ICommand Remove { get; private set; }
+    }
+
+    class AzVm : Obs
+    {
+        static readonly HashSet<string> NotApps = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "WindowsUnlockedToolkit", "ApplicationFrameHost", "TextInputHost", "ShellExperienceHost", "StartMenuExperienceHost",
+            "SearchHost", "LockApp", "SystemSettings", "explorer", "AutoZoom", "LeanbackMode", "MediaTabJump"
+        };
+
+        readonly Shell shell;
+        readonly Debounce save;
+        readonly List<string> other = new List<string>(); // comments and other settings, kept as they are
+        public ObservableCollection<AzApp> Apps { get; private set; }
+        public ICommand AddApp { get; private set; }
+
+        public AzVm(Shell shell)
+        {
+            this.shell = shell;
+            save = new Debounce(250, Save);
+            Apps = new ObservableCollection<AzApp>();
+            AddApp = new Cmd(PickApp);
+        }
+
+        Snap S { get { return shell.State; } }
+
+        public void Load()
+        {
+            Apps.Clear();
+            other.Clear();
+            string[] lines = new string[0];
+            try { if (File.Exists(P.AzSettings)) lines = File.ReadAllLines(P.AzSettings); } catch { }
+            foreach (var raw in lines)
+            {
+                string line = raw.Trim();
+                int eq = line.IndexOf('=');
+                if (eq > 4 && line.StartsWith("App.", StringComparison.OrdinalIgnoreCase))
+                {
+                    string proc = line.Substring(4, eq - 4).Trim();
+                    if (proc.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) proc = proc.Substring(0, proc.Length - 4);
+                    string[] parts = line.Substring(eq + 1).Split(',');
+                    int max, normal;
+                    if (proc.Length > 0 && parts.Length >= 2
+                        && int.TryParse(parts[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out max)
+                        && int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out normal))
+                    {
+                        Apps.Add(new AzApp(this, proc, FriendlyName(proc), max, normal));
+                        continue;
+                    }
+                }
+                other.Add(raw);
+            }
+            RaiseAll();
+        }
+
+        // Sample list for the self-test screenshots.
+        public void Sample()
+        {
+            Apps.Clear();
+            Apps.Add(new AzApp(this, "claude", "Claude", 4, 1));
+            Apps.Add(new AzApp(this, "ms-teams", "Microsoft Teams", 2, 0));
+            Apps.Add(new AzApp(this, "notepad", "Notepad", 0, -1));
+            RaiseAll();
+        }
+
+        public void Flush() { save.Flush(); }
+        public void Changed() { save.Kick(); RaiseAll(); }
+        public void RemoveApp(AzApp app) { Apps.Remove(app); Changed(); }
+
+        void Save()
+        {
+            if (Shell.Demo || !Az.Installed) return;
+            var lines = new List<string>(other);
+            int at = 0;
+            while (at < lines.Count && (lines[at].Trim().StartsWith("#") || lines[at].Trim().StartsWith(";"))) at++;
+            var apps = new List<string>();
+            foreach (var a in Apps)
+                apps.Add("App." + a.ProcName + "=" + a.Max.ToString(CultureInfo.InvariantCulture) + "," + a.Normal.ToString(CultureInfo.InvariantCulture));
+            lines.InsertRange(at, apps);
+            for (int attempt = 0; attempt < 6; attempt++)
+            {
+                try
+                {
+                    Directory.CreateDirectory(P.AzDir);
+                    File.WriteAllText(P.AzSettings, string.Join(Environment.NewLine, lines) + Environment.NewLine);
+                    shell.NoteOwnWrite(P.AzSettings);
+                    return;
+                }
+                catch (IOException) { Thread.Sleep(80); }
+                catch (UnauthorizedAccessException) { Thread.Sleep(80); }
+            }
+            Log.Write("couldn't save " + P.AzSettings);
+        }
+
+        // A menu of the apps that have a window open right now.
+        void PickApp()
+        {
+            var found = new SortedDictionary<string, string>(StringComparer.CurrentCultureIgnoreCase); // name -> process
+            var have = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var a in Apps) have.Add(a.ProcName);
+            foreach (var p in Process.GetProcesses())
+            {
+                try
+                {
+                    if (p.MainWindowHandle == IntPtr.Zero || p.MainWindowTitle.Length == 0) continue;
+                    string proc = p.ProcessName;
+                    if (have.Contains(proc) || NotApps.Contains(proc)) continue;
+                    string name = Describe(p, proc);
+                    if (found.ContainsKey(name) && found[name] != proc) name = name + " (" + proc + ")";
+                    found[name] = proc;
+                    have.Add(proc);
+                }
+                catch { }
+                finally { p.Dispose(); }
+            }
+
+            var menu = new ContextMenu();
+            foreach (var kv in found)
+            {
+                var item = new MenuItem();
+                item.Header = kv.Key;
+                string proc = kv.Value, name = kv.Key;
+                item.Click += delegate
+                {
+                    Apps.Add(new AzApp(this, proc, name, 2, 0));
+                    Log.Write("AutoZoom: added " + proc);
+                    Changed();
+                };
+                menu.Items.Add(item);
+            }
+            if (found.Count == 0)
+            {
+                var none = new MenuItem();
+                none.Header = "Open the app first, then add it here";
+                none.IsEnabled = false;
+                menu.Items.Add(none);
+            }
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+            menu.IsOpen = true;
+        }
+
+        static string FriendlyName(string proc)
+        {
+            foreach (var p in Process.GetProcessesByName(proc))
+            {
+                try { return Describe(p, proc); }
+                finally { p.Dispose(); }
+            }
+            return Describe(null, proc);
+        }
+
+        static string Describe(Process p, string proc)
+        {
+            if (p != null)
+            {
+                try
+                {
+                    string d = p.MainModule.FileVersionInfo.FileDescription;
+                    if (!string.IsNullOrWhiteSpace(d)) return d.Trim();
+                }
+                catch { }
+            }
+            return proc.Length > 0 ? char.ToUpperInvariant(proc[0]) + proc.Substring(1) : proc;
+        }
+
+        public bool HasApps { get { return Apps.Count > 0; } }
+        public bool NoApps { get { return Apps.Count == 0; } }
+
+        public string Problem
+        {
+            get
+            {
+                if (!S.AzInstalled) return "AutoZoom isn't installed on this PC. Get it from the toolkit website (Updates and about).";
+                if (Shell.Paused) return "The toolkit is paused. AutoZoom comes back when you resume.";
+                if (!S.AzEnabled) return "AutoZoom is turned off. Turn it on from All tools.";
+                return "";
+            }
+        }
+        public bool HasProblem { get { return Problem.Length > 0; } }
+    }
+
     // ------------------------------------------------------------------ Appearance page
 
     class LookVm : Obs
@@ -1482,6 +1750,7 @@ namespace UnlockedToolkit
         string page = "home";
         public LeanVm Lean { get; private set; }
         public MtjVm Mtj { get; private set; }
+        public AzVm Az { get; private set; }
         public LookVm Look { get; private set; }
         public AboutVm About { get; private set; }
         public ObservableCollection<ToolCard> Tools { get; private set; }
@@ -1490,6 +1759,7 @@ namespace UnlockedToolkit
         {
             Lean = new LeanVm(shell);
             Mtj = new MtjVm(shell);
+            Az = new AzVm(shell);
             Look = new LookVm(shell);
             About = new AboutVm();
             Tools = new ObservableCollection<ToolCard>();
@@ -1516,10 +1786,20 @@ namespace UnlockedToolkit
             mtj.Open = new Cmd(delegate { Page = "mtj"; });
             Tools.Add(mtj);
 
+            var az = new ToolCard();
+            az.Id = "autozoom"; az.NameText = "AutoZoom"; az.MonoText = "Z";
+            az.TileBrush = Theme.Gradient(Theme.Parse("#D98E04", Colors.Orange), Theme.Parse("#B5452A", Colors.Red));
+            az.BlurbText = "Pick how big each app is when its window is maximized, and when it isn’t.";
+            az.GetInstalled = delegate { return shell.State.AzInstalled; };
+            az.GetOn = delegate { return shell.State.AzEnabled; };
+            az.GetRunning = delegate { return shell.State.AzRunning; };
+            az.SetOn = shell.SetAz;
+            az.Open = new Cmd(delegate { Page = "az"; });
+            Tools.Add(az);
+
             string[][] soon =
             {
                 new[] { "Window Tab Organizer", "W", "#16A37B", "#0B5F6E" },
-                new[] { "Claude AutoZoom", "Z", "#D98E04", "#B5452A" },
                 new[] { "Startup Minimizer", "S", "#5B6472", "#2A2F3A" }
             };
             foreach (var s in soon)
@@ -1541,6 +1821,7 @@ namespace UnlockedToolkit
         public bool IsHome { get { return page == "home"; } set { if (value) Page = "home"; } }
         public bool IsLean { get { return page == "lean"; } set { if (value) Page = "lean"; } }
         public bool IsMtj { get { return page == "mtj"; } set { if (value) Page = "mtj"; } }
+        public bool IsAz { get { return page == "az"; } set { if (value) Page = "az"; } }
         public bool IsLook { get { return page == "look"; } set { if (value) Page = "look"; } }
         public bool IsAbout { get { return page == "about"; } set { if (value) Page = "about"; } }
         public string VersionText { get { return "Version " + Program.Version; } }
@@ -1551,6 +1832,7 @@ namespace UnlockedToolkit
             foreach (var t in Tools) t.RaiseAll();
             Lean.StatusChanged();
             Mtj.RaiseAll();
+            Az.RaiseAll();
             RaiseAll();
         }
     }
@@ -1610,6 +1892,17 @@ namespace UnlockedToolkit
                 delegate { return S.GlowOn && S.MtjEnabled; },
                 delegate { return GlowName(); },
                 shell.SetGlow));
+            Tiles.Add(MakeTile("AutoZoom",
+                delegate { return S.AzInstalled; },
+                delegate { return S.AzEnabled; },
+                delegate { return S.AzRunning ? AzSummary() : "Starting…"; },
+                shell.SetAz));
+        }
+
+        string AzSummary()
+        {
+            int n = shell.Vm.Az.Apps.Count;
+            return n == 0 ? "No apps yet" : n == 1 ? "1 app" : n + " apps";
         }
 
         Snap S { get { return shell.State; } }
@@ -1713,7 +2006,7 @@ namespace UnlockedToolkit
         Window main, flyout;
         DispatcherTimer poll;
         string lastKey;
-        DateTime statusStamp, leanStamp, mtjStamp, flyoutHidden;
+        DateTime statusStamp, leanStamp, mtjStamp, azStamp, flyoutHidden;
         readonly List<string> pausedWhat = new List<string>();
         SD.Icon currentIcon;
         bool lastTv;
@@ -1735,6 +2028,8 @@ namespace UnlockedToolkit
             vm.Lean.LoadSettings();
             vm.Lean.LoadLayout(null);
             vm.Mtj.Load();
+            vm.Az.Load();
+            azStamp = Stamp(P.AzSettings);
             Leanback.ShowOwnIcon(false); // one tray icon for everything
 
             trayMenu = new WF.ContextMenuStrip();
@@ -1804,7 +2099,7 @@ namespace UnlockedToolkit
             try { return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : DateTime.MinValue; } catch { return DateTime.MinValue; }
         }
 
-        public void NoteOwnWrite(string path) { if (path == P.LeanSettings) leanStamp = Stamp(path); }
+        public void NoteOwnWrite(string path) { if (path == P.LeanSettings) leanStamp = Stamp(path); if (path == P.AzSettings) azStamp = Stamp(path); }
 
         public void Refresh()
         {
@@ -1820,6 +2115,9 @@ namespace UnlockedToolkit
             s.MtjRunning = s.MtjInstalled && Procs.Running("MediaTabJump");
             s.MtjEnabled = Mtj.Enabled;
             s.GlowOn = !File.Exists(P.MtjGlowOff);
+            s.AzInstalled = Az.Installed;
+            s.AzRunning = s.AzInstalled && Procs.Running("AutoZoom");
+            s.AzEnabled = Az.Enabled;
             s.Status = s.LeanRunning ? Ini.Read(P.LeanStatus) : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             State = s;
 
@@ -1833,6 +2131,8 @@ namespace UnlockedToolkit
             }
             var ms = Stamp(P.MtjSettings);
             if (ms != mtjStamp) { mtjStamp = ms; vm.Mtj.Load(); }
+            var zs = Stamp(P.AzSettings);
+            if (zs != azStamp) { azStamp = zs; vm.Az.Flush(); vm.Az.Load(); }
 
             if (Paused && DateTime.Now >= PausedUntil) Resume();
 
@@ -1882,6 +2182,14 @@ namespace UnlockedToolkit
             Procs.Background(delegate { if (on) Mtj.Start(); else Mtj.Stop(); }, Refresh);
         }
 
+        public void SetAz(bool on)
+        {
+            if (Paused) Resume();
+            Startup.SetRun(Az.RunName, on);
+            Log.Write("AutoZoom turned " + (on ? "on" : "off"));
+            Procs.Background(delegate { if (on) Az.Start(); else Az.Stop(); }, Refresh);
+        }
+
         public void SetGlow(bool on)
         {
             if (!Demo)
@@ -1908,6 +2216,7 @@ namespace UnlockedToolkit
             if (s.LeanRunning) pausedWhat.Add("lean");
             if (s.AmxRunning) pausedWhat.Add("amx");
             if (s.MtjRunning) pausedWhat.Add("mtj");
+            if (s.AzRunning) pausedWhat.Add("az");
             Log.Write("paused everything until " + PausedUntil.ToString("HH:mm", CultureInfo.InvariantCulture));
             var what = new List<string>(pausedWhat);
             Procs.Background(delegate
@@ -1915,6 +2224,7 @@ namespace UnlockedToolkit
                 if (what.Contains("lean")) Leanback.Exit(); // back to desktop mode first
                 if (what.Contains("amx")) Amx.Stop();
                 if (what.Contains("mtj")) Mtj.Stop();
+                if (what.Contains("az")) Az.Stop();
             }, Refresh);
             lastKey = null;
             UpdateIcon();
@@ -1933,6 +2243,7 @@ namespace UnlockedToolkit
                 if (what.Contains("amx")) Amx.Start();
                 if (what.Contains("lean")) Leanback.Start();
                 if (what.Contains("mtj")) Mtj.Start();
+                if (what.Contains("az")) Az.Start();
             }, Refresh);
             lastKey = null;
             UpdateIcon();
@@ -1942,7 +2253,7 @@ namespace UnlockedToolkit
         public void Quit()
         {
             Log.Write("quit");
-            try { vm.Lean.Flush(); vm.Mtj.Flush(); } catch { }
+            try { vm.Lean.Flush(); vm.Mtj.Flush(); vm.Az.Flush(); } catch { }
             if (Paused) Resume(); // never leave tools stopped behind
             Leanback.ShowOwnIcon(true); // Leanback Mode shows its own icon again while the toolkit is closed
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
@@ -1966,6 +2277,7 @@ namespace UnlockedToolkit
                 vm.Lean.Capturing = false;
                 vm.Lean.Flush();
                 vm.Mtj.Flush();
+                vm.Az.Flush();
                 if (!Demo) { e.Cancel = true; w.Hide(); }
             };
             return w;
@@ -2177,6 +2489,8 @@ namespace UnlockedToolkit
                 s.LeanInstalled = s.LeanRunning = s.LeanEnabled = true;
                 s.AmxInstalled = s.AmxRunning = s.AmxEnabled = true;
                 s.MtjInstalled = s.MtjRunning = s.MtjEnabled = s.GlowOn = true;
+                s.AzInstalled = s.AzRunning = s.AzEnabled = true;
+                shell.Vm.Az.Sample();
                 s.Status = Ini.Pairs("Mode", "TV", "Why", "controller on", "Controller", "8BitDo (2DC8:301A)", "LastController", "8BitDo (2DC8:301A)", "Mouse", "on", "Hotkey", "Ctrl+Alt+T");
                 shell.Vm.Lean.LoadSettings();
                 shell.Vm.Lean.LoadLayout(layoutPath);
@@ -2185,7 +2499,7 @@ namespace UnlockedToolkit
                 report.AppendLine("controller layout " + (layoutPath != null && File.Exists(layoutPath) ? "loaded: " + shell.Vm.Lean.ActionLabel("A") + " on A" : "not given"));
 
                 var main = Detach(shell.BuildMain());
-                foreach (var page in new[] { "home", "lean", "mtj", "look", "about" })
+                foreach (var page in new[] { "home", "lean", "mtj", "az", "look", "about" })
                 {
                     shell.Vm.Page = page;
                     Save(main, 1100, Path.Combine(outDir, "settings-" + page + ".png"), report);
