@@ -3413,7 +3413,7 @@ namespace UnlockedToolkit
             expect(e != null && e.Qt == 0x2d, "minus key");
 
             m.Map["X"] = ctrlK;
-            m.Map2["Y"] = "alttab";
+            m.Map2["Back"] = "alttab";
             m.Map["LT"] = "space"; m.Map2["LT"] = "space";
             m.LayerButton = "RB";
             string copy = Path.Combine(outDir, "layout-roundtrip.amgp");
@@ -3422,7 +3422,7 @@ namespace UnlockedToolkit
             expect(r.Found, "copy loads" + (r.Error != null ? ": " + r.Error : ""));
             expect(r.LayerButton == "RB", "layer moved to RB (got " + (r.LayerButton ?? "none") + ")");
             expect(r.Get(1, "X") == ctrlK, "X keeps Ctrl+K (got " + r.Get(1, "X") + ")");
-            expect(r.Get(2, "Y") == "alttab", "Y while holding is Alt+Tab (got " + r.Get(2, "Y") + ")");
+            expect(r.Get(2, "Back") == "alttab", "Back while holding is Alt+Tab (got " + r.Get(2, "Back") + ")");
             expect(r.Get(1, "LT") == "space", "LT is Space again (got " + r.Get(1, "LT") + ")");
 
             report.AppendLine(bad.Count == 0 ? "layout round trip OK" : "layout round trip FAILED: " + string.Join("; ", bad));
