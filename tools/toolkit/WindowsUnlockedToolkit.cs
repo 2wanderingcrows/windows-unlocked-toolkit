@@ -2134,7 +2134,7 @@ namespace UnlockedToolkit
             var az = new ToolCard();
             az.Id = "autozoom"; az.NameText = "AutoZoom"; az.MonoText = "Z";
             az.TileBrush = Theme.Gradient(Theme.Parse("#D98E04", Colors.Orange), Theme.Parse("#B5452A", Colors.Red));
-            az.BlurbText = "Pick how big each app is when its window is maximized, and when it isn’t.";
+            az.BlurbText = "Pick how big each app is when its window is maximized, and when it isn\u2019t.";
             az.GetInstalled = delegate { return shell.State.AzInstalled; };
             az.GetOn = delegate { return shell.State.AzEnabled; };
             az.GetRunning = delegate { return shell.State.AzRunning; };
@@ -2240,7 +2240,7 @@ namespace UnlockedToolkit
             Tiles.Add(MakeTile("AutoZoom",
                 delegate { return S.AzInstalled; },
                 delegate { return S.AzEnabled; },
-                delegate { return S.AzRunning ? AzSummary() : "Starting…"; },
+                delegate { return S.AzRunning ? AzSummary() : "Starting\u2026"; },
                 shell.SetAz));
         }
 
