@@ -135,6 +135,17 @@
   .cmdline button { background:var(--text); color:var(--bg); border:0; border-radius:12px; padding:0 16px; cursor:pointer; font:inherit; font-size:.88rem; font-weight:600; }
   .note { color:var(--muted); font-size:.9rem; max-width:760px; margin:26px auto 0; text-align:center; }
 
+  /* friends */
+  .friends { display:flex; justify-content:center; flex-wrap:wrap; gap:16px; }
+  .friend { display:flex; gap:16px; align-items:center; max-width:560px; background:var(--card); border-radius:var(--radius);
+            padding:20px 24px; box-shadow:var(--shadow); color:var(--text); transition:transform .15s ease, box-shadow .15s ease; }
+  .friend:hover { text-decoration:none; transform:translateY(-2px); box-shadow:var(--shadow), 0 12px 28px -14px var(--accent); }
+  .friend .mark { flex:none; width:48px; height:48px; border-radius:14px; display:grid; place-items:center; font-weight:700; font-size:1.3rem;
+                  color:#fff; background:linear-gradient(135deg, var(--accent), var(--accent2)); }
+  .friend b { display:block; font-size:1.05rem; }
+  .friend span { display:block; color:var(--muted); font-size:.95rem; margin-top:2px; }
+  .friend .go { color:var(--accent); font-weight:600; margin-top:6px; }
+
   /* faq */
   .faq { max-width:760px; margin:0 auto; }
   details { background:var(--card); border-radius:18px; padding:18px 22px; margin-bottom:10px; box-shadow:var(--shadow); }
@@ -281,6 +292,22 @@
       <details><summary>Will it slow my PC down?</summary><p>No. The tools are small background helpers that mostly sleep until you need them. You can see and pause them in Task Manager under Startup apps.</p></details>
       <details><summary>Which Windows versions work?</summary><p>They're made on Windows 11. They only need Windows PowerShell 5.1 and the C# compiler that come with Windows, so Windows 10 should work too. If it doesn't, please open an issue.</p></details>
       <details><summary>Can I suggest a tool or report a bug?</summary><p>Yes please! <a href="{{REPO_URL}}/issues">Open an issue on GitHub</a> with your idea or what went wrong. Each tool keeps a small log in its folder that helps track problems down.</p></details>
+    </div>
+  </div>
+</section>
+
+<section id="friends">
+  <div class="wrap">
+    <div class="head"><h2>Friends of the toolkit.</h2><p>Other home-made corners of the internet worth a visit.</p></div>
+    <div class="friends">
+      <a class="friend" href="https://thehaugenproject.com/" target="_blank" rel="noopener">
+        <div class="mark" aria-hidden="true">h</div>
+        <div>
+          <b>The Haugen Project</b>
+          <span>The world at a glance, made at home with no ads or tracking: a history atlas, a live California and Oregon outage board, quizzes, and browser games.</span>
+          <span class="go">thehaugenproject.com &rarr;</span>
+        </div>
+      </a>
     </div>
   </div>
 </section>
