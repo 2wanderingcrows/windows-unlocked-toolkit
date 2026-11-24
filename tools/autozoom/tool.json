@@ -1,0 +1,9 @@
+{
+  "id": "autozoom",
+  "name": "AutoZoom",
+  "version": "1.0",
+  "summary": "Pick any app and set how zoomed in it is when its window is maximized and when it isn't. AutoZoom switches as you resize.",
+  "install": "Install.ps1",
+  "uninstall": "Uninstall.ps1",
+  "admin": false
+}

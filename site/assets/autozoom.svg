@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="Segoe UI Variable Display, Segoe UI, system-ui, -apple-system, Helvetica, Arial, sans-serif">
+  <!-- MOCKUP: illustration of AutoZoom. Swap for a real screenshot (same 1200x640 size) when one exists. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff8e6"/>
+      <stop offset="1" stop-color="#fde4d6"/>
+    </linearGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d98e04"/>
+      <stop offset="1" stop-color="#b5452a"/>
+    </linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#7c2d12" flood-opacity="0.2"/></filter>
+    <clipPath id="c"><rect width="1200" height="640" rx="28"/></clipPath>
+    <marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7c2d12"/></marker>
+  </defs>
+  <g clip-path="url(#c)">
+    <rect width="1200" height="640" fill="url(#bg)"/>
+
+    <!-- maximized window: big text -->
+    <g filter="url(#sh)">
+      <rect x="60" y="70" width="620" height="470" rx="16" fill="#ffffff"/>
+    </g>
+    <rect x="60" y="70" width="620" height="44" rx="16" fill="#f4f1ec"/>
+    <rect x="60" y="98" width="620" height="16" fill="#f4f1ec"/>
+    <circle cx="640" cy="92" r="6" fill="#d6cfc6"/><circle cx="618" cy="92" r="6" fill="#d6cfc6"/><circle cx="596" cy="92" r="6" fill="#d6cfc6"/>
+    <rect x="96" y="150" width="380" height="26" rx="13" fill="#2b2b33"/>
+    <rect x="96" y="200" width="540" height="18" rx="9" fill="#c9c4bd"/>
+    <rect x="96" y="234" width="500" height="18" rx="9" fill="#c9c4bd"/>
+    <rect x="96" y="268" width="520" height="18" rx="9" fill="#c9c4bd"/>
+    <rect x="96" y="320" width="540" height="18" rx="9" fill="#c9c4bd"/>
+    <rect x="96" y="354" width="460" height="18" rx="9" fill="#c9c4bd"/>
+    <rect x="96" y="440" width="540" height="62" rx="16" fill="#f4f1ec" stroke="#e5ded4"/>
+    <rect x="122" y="463" width="200" height="16" rx="8" fill="#d6cfc6"/>
+    <g>
+      <rect x="96" y="560" width="240" height="44" rx="22" fill="#ffffff" stroke="#ead9c6"/>
+      <text x="216" y="589" font-size="20" font-weight="600" fill="#7c2d12" text-anchor="middle">Maximized: +4</text>
+    </g>
+
+    <!-- arrow -->
+    <path d="M 712 300 C 760 260, 800 260, 840 300" fill="none" stroke="#7c2d12" stroke-width="4" stroke-linecap="round" marker-end="url(#ah)" marker-start="url(#ah)"/>
+
+    <!-- restored window: smaller text -->
+    <g filter="url(#sh)">
+      <rect x="860" y="150" width="290" height="300" rx="14" fill="#ffffff"/>
+    </g>
+    <rect x="860" y="150" width="290" height="34" rx="14" fill="#f4f1ec"/>
+    <rect x="860" y="170" width="290" height="14" fill="#f4f1ec"/>
+    <circle cx="1124" cy="167" r="5" fill="#d6cfc6"/><circle cx="1106" cy="167" r="5" fill="#d6cfc6"/><circle cx="1088" cy="167" r="5" fill="#d6cfc6"/>
+    <rect x="882" y="206" width="170" height="16" rx="8" fill="#2b2b33"/>
+    <rect x="882" y="236" width="240" height="11" rx="5.5" fill="#c9c4bd"/>
+    <rect x="882" y="256" width="220" height="11" rx="5.5" fill="#c9c4bd"/>
+    <rect x="882" y="276" width="232" height="11" rx="5.5" fill="#c9c4bd"/>
+    <rect x="882" y="306" width="240" height="11" rx="5.5" fill="#c9c4bd"/>
+    <rect x="882" y="326" width="200" height="11" rx="5.5" fill="#c9c4bd"/>
+    <rect x="882" y="392" width="246" height="38" rx="11" fill="#f4f1ec" stroke="#e5ded4"/>
+    <g>
+      <rect x="880" y="480" width="250" height="44" rx="22" fill="#ffffff" stroke="#ead9c6"/>
+      <text x="1005" y="509" font-size="20" font-weight="600" fill="#7c2d12" text-anchor="middle">Not maximized: +1</text>
+    </g>
+
+    <!-- badge -->
+    <rect x="1050" y="60" width="96" height="40" rx="12" fill="url(#tile)"/>
+    <text x="1098" y="87" font-size="20" font-weight="700" fill="#ffffff" text-anchor="middle">Zoom</text>
+  </g>
+</svg>

@@ -1,8 +1,8 @@
 {
   "id": "toolkit",
   "name": "Toolkit tray app",
-  "version": "1.0",
-  "summary": "One tray icon for the whole toolkit: quick switches for every tool and a settings window for Leanback Mode, Media Tab Jump and how it all looks.",
+  "version": "1.1",
+  "summary": "One tray icon for the whole toolkit: quick switches for every tool and a settings window for Leanback Mode, Media Tab Jump, AutoZoom and how it all looks.",
   "install": "Install.ps1",
   "uninstall": "Uninstall.ps1",
   "admin": false,

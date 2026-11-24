@@ -32,6 +32,21 @@
       "mockup": true,
       "accent": "#f2552c"
     },
+    "autozoom": {
+      "tagline": "Every app at a comfortable size.",
+      "problem": "An app that looks great full-screen can feel cramped in half the screen, and the other way round. AutoZoom lets you pick how zoomed in each app is when its window is maximized and when it isn't, and switches by itself as you resize.",
+      "bullets": [
+        "Any app that zooms with Ctrl and +: Claude, Teams, Discord, Slack, VS Code, Notepad, browsers",
+        "Two levels per app: one for maximized, one for everything else",
+        "Each window keeps its own zoom, so two windows of the same app never fight",
+        "Add apps and set their zoom from the tray app, with changes applied instantly",
+        "Never reads the screen or what you type: it only presses the app's own zoom keys"
+      ],
+      "image": "assets/autozoom.svg",
+      "alt": "The same app shown twice: maximized with larger text, and in a smaller window with text sized to fit",
+      "mockup": true,
+      "accent": "#d98e04"
+    },
     "toolkit": {
       "tagline": "Every tool, one tidy tray icon.",
       "problem": "Small helpers are great until you have five tray icons and five settings files. The toolkit tray app puts every tool behind one icon, with quick switches and a settings page for each.",
@@ -39,6 +54,7 @@
         "Click once to flip between Leanback mode and desktop mode, or turn any tool on or off",
         "Tune controller speed, scrolling and what every button does, without touching a config file",
         "Pick the hover glow's colour, brightness and size, with a live preview",
+        "Choose which apps AutoZoom handles and how big each one gets",
         "Light or dark, your Windows accent or one of nine colours, three tray icon styles",
         "Pause everything for an hour when you need a plain PC"
       ],
@@ -53,10 +69,7 @@
       "name": "Window Tab Organizer",
       "note": "For anyone with way too many windows open"
     },
-    {
-      "name": "Claude AutoZoom",
-      "note": "Claude, always at a comfortable size"
-    },
+
     {
       "name": "Startup Minimizer",
       "note": "Sign in to a calm desktop, not a pile of windows"

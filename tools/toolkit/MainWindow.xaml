@@ -47,6 +47,12 @@
               <TextBlock Text="Media Tab Jump" Margin="12,0,0,0" VerticalAlignment="Center"/>
             </StackPanel>
           </RadioButton>
+          <RadioButton Style="{StaticResource Nav}" GroupName="Nav" IsChecked="{Binding IsAz, Mode=TwoWay}" AutomationProperties.Name="AutoZoom">
+            <StackPanel Orientation="Horizontal">
+              <Path Width="18" Height="18" Stretch="Uniform" Data="M 3.5,10.5 A 7,7 0 1 0 17.5,10.5 A 7,7 0 1 0 3.5,10.5 Z M 15.5,15.5 L 21,21 M 10.5,7.5 V 13.5 M 7.5,10.5 H 13.5" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+              <TextBlock Text="AutoZoom" Margin="12,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
+          </RadioButton>
           <TextBlock Text="Toolkit" Style="{StaticResource Section}"/>
           <RadioButton Style="{StaticResource Nav}" GroupName="Nav" IsChecked="{Binding IsLook, Mode=TwoWay}" AutomationProperties.Name="Appearance">
             <StackPanel Orientation="Horizontal">
@@ -405,6 +411,66 @@
               </Border>
             </StackPanel>
           </Border>
+        </StackPanel>
+        </Border>
+
+        <!-- AutoZoom -->
+        <Border Visibility="{Binding IsAz, Converter={StaticResource Vis}}">
+        <StackPanel DataContext="{Binding Az}">
+          <TextBlock Text="AutoZoom" Style="{StaticResource H1}"/>
+          <TextBlock Text="Pick how big each app is when its window is maximized, and when it isn't. AutoZoom presses the app's own zoom keys for you as you maximize and restore it." Style="{StaticResource Lede}" Margin="0,6,0,20"/>
+          <TextBlock Text="{Binding Problem}" Style="{StaticResource Hint}" Foreground="#C2410C" Margin="0,0,0,14" Visibility="{Binding HasProblem, Converter={StaticResource Vis}}"/>
+          <Border Style="{StaticResource Card}">
+            <StackPanel>
+              <Border Style="{StaticResource RowFirst}">
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Style="{StaticResource Primary}" Content="Add an app" Command="{Binding AddApp}" VerticalAlignment="Center"/>
+                  <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="Your apps" Style="{StaticResource CardTitle}"/>
+                    <TextBlock Text="Zoom goes in steps. One step is one press of the app's zoom-in key (Ctrl and +); below 100% it's zoom-out (Ctrl and -)." Style="{StaticResource Hint}" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+              <Border Style="{StaticResource Row}" Visibility="{Binding NoApps, Converter={StaticResource Vis}}">
+                <TextBlock Text="No apps yet. Open the app you want, then click Add an app." Style="{StaticResource Hint}" Margin="0"/>
+              </Border>
+              <ItemsControl ItemsSource="{Binding Apps}" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Style="{StaticResource Row}">
+                      <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Secondary}" Content="Remove" Command="{Binding Remove}" VerticalAlignment="Center" Margin="22,0,0,0" ToolTip="Stop zooming this app" AutomationProperties.Name="Remove"/>
+                        <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" VerticalAlignment="Center">
+                          <TextBlock Text="Not maximized" Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                          <StackPanel Orientation="Horizontal" AutomationProperties.Name="{Binding NormalAria}">
+                            <Button Style="{StaticResource Secondary}" Content="&#x2212;" Width="36" Padding="0" HorizontalContentAlignment="Center" Command="{Binding NormalDown}" AutomationProperties.Name="Smaller when not maximized"/>
+                            <TextBlock Text="{Binding NormalText}" Width="54" TextAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                            <Button Style="{StaticResource Secondary}" Content="+" Width="36" Padding="0" HorizontalContentAlignment="Center" Command="{Binding NormalUp}" AutomationProperties.Name="Bigger when not maximized"/>
+                          </StackPanel>
+                        </StackPanel>
+                        <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" VerticalAlignment="Center">
+                          <TextBlock Text="Maximized" Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                          <StackPanel Orientation="Horizontal" AutomationProperties.Name="{Binding MaxAria}">
+                            <Button Style="{StaticResource Secondary}" Content="&#x2212;" Width="36" Padding="0" HorizontalContentAlignment="Center" Command="{Binding MaxDown}" AutomationProperties.Name="Smaller when maximized"/>
+                            <TextBlock Text="{Binding MaxText}" Width="54" TextAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                            <Button Style="{StaticResource Secondary}" Content="+" Width="36" Padding="0" HorizontalContentAlignment="Center" Command="{Binding MaxUp}" AutomationProperties.Name="Bigger when maximized"/>
+                          </StackPanel>
+                        </StackPanel>
+                        <Border Width="36" Height="36" CornerRadius="10" Background="{Binding Tile}" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Mono}" Foreground="#FFFFFF" FontWeight="Bold" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Name}" Style="{StaticResource Label}" TextTrimming="CharacterEllipsis"/>
+                          <TextBlock Text="{Binding Meta}" Style="{StaticResource Hint}" Margin="0"/>
+                        </StackPanel>
+                      </DockPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+          <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="4,14,0,0" Text="Works with apps that zoom with Ctrl and +, such as Claude, Teams, Discord, Slack, VS Code, Notepad and browsers. Each window keeps its own zoom, so two windows of the same app don't affect each other. Zoomed an app by hand? Press Ctrl+0 in it, then maximize or restore it once."/>
         </StackPanel>
         </Border>
 
