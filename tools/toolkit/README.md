@@ -9,12 +9,15 @@ One icon in the system tray for the whole toolkit.
   on/off tiles for Leanback Mode, the controller mouse, Media Tab Jump, its
   hover glow, and AutoZoom. There's also **Pause everything for 1 hour**.
 - **Open settings** for a page per tool:
-  - **Leanback Mode:** when to use Leanback mode, how big everything gets, pointer size,
+  - **Leanback Mode:** when to use Leanback mode, which screen gets bigger (with
+    more than one), how big everything gets, pointer size,
     the switch shortcut, staying in Leanback mode when the controller falls asleep,
     pointer and scroll speed, what each controller button does, and which
     controllers count.
-  - **Media Tab Jump:** the hover glow's colour, brightness and size, with a live preview.
-  - **AutoZoom:** which apps it zooms, and how many steps each one gets when maximized and when not.
+  - **Media Tab Jump:** the hover glow's colour, brightness and size, with a live preview,
+    and (with more than one screen) whether the tab comes to the screen you're on.
+  - **AutoZoom:** which apps it zooms, and how many steps each one gets when maximized and when not,
+    on every screen or on one screen in particular.
   - **Appearance:** light or dark, an accent colour (or your Windows accent), and the tray icon's style.
   - **Updates and about:** start with Windows, the website, source code and logs.
 

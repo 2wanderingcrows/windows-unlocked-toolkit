@@ -1,7 +1,9 @@
 // Leanback Mode for Windows  (part of Windows Unlocked Toolkit)
 // Watches for a game controller: Xbox-style (XInput) pads, plus PlayStation, Switch Pro, 8BitDo and
 // generic Bluetooth / 2.4 GHz pads that Windows lists as "HID-compliant game controller".
-// Controller on  -> "Leanback mode": bigger Windows scaling on the primary display + bigger mouse pointer.
+// Controller on  -> "Leanback mode": bigger Windows scaling on one screen + bigger mouse pointer.
+//                    Which screen is up to you (Screen= in settings.ini): your main display, or say the TV.
+//                    Other screens are left alone, and the pointer jumps to the Leanback screen.
 // Controller off -> back to your normal scaling and pointer size ("desktop mode").
 // If the controller only fell asleep (it went off by itself after sitting idle), Leanback mode stays on;
 // switching the controller off yourself goes back to desktop mode. See StayInLeanbackWhenAsleep.
@@ -73,6 +75,7 @@ namespace LeanbackMode
             if (args.Length >= 1 && args[0] == "--reset")
             {
                 var s = File.Exists(Settings.FilePath) ? Settings.Load() : new Settings();
+                DisplayScale.ScreenName = s.ScreenName;
                 DisplayScale.Set(s.NormalScale);
                 PointerSize.Set(s.NormalPointerSize);
                 return;
@@ -80,7 +83,7 @@ namespace LeanbackMode
             if (args.Length >= 2 && args[0] == "--render-backdrop")
             {
                 bool tv = !(args.Length >= 3 && args[2] == "desktop");
-                Rectangle b = Screen.PrimaryScreen.Bounds, ind;
+                Rectangle b = DisplayScale.TargetBounds(), ind;
                 using (var small = Visuals.CaptureSmall(b))
                 using (var bg = Visuals.MakeBackdrop(small, b.Size, tv, "preview", out ind))
                 {
@@ -214,6 +217,8 @@ namespace LeanbackMode
         public int CrossfadeMs = 220;
         public int FadeOutMs = 420;
         public string Mode = "Auto"; // Auto | TV | Normal
+        public string ScreenName = Screens.Main; // which screen gets bigger: Main, or a screen's name ("LG TV SSCR2")
+        public bool MovePointerToScreen = true;  // bring the pointer to that screen when Leanback mode starts
         public string Hotkey = "Ctrl+Alt+T";
         public bool PauseMouseInGames = true;
         public double ResumeAfterGameSeconds = 2;
@@ -239,6 +244,7 @@ namespace LeanbackMode
             if (!File.Exists(FilePath))
             {
                 // First run: remember what "normal" looks like on this PC.
+                DisplayScale.ScreenName = s.ScreenName;
                 int cur = DisplayScale.GetCurrent();
                 if (cur > 0) s.NormalScale = cur;
                 if (s.TvScale <= s.NormalScale) s.TvScale = s.NormalScale + 50; // TV mode should always be bigger
@@ -272,6 +278,8 @@ namespace LeanbackMode
                     case "crossfadems": if (int.TryParse(v, out i)) s.CrossfadeMs = Math.Max(0, i); break;
                     case "fadeoutms": if (int.TryParse(v, out i)) s.FadeOutMs = Math.Max(0, i); break;
                     case "mode": s.Mode = v; break;
+                    case "screen": s.ScreenName = v.Length > 0 ? v : Screens.Main; break;
+                    case "movepointertoscreen": s.MovePointerToScreen = !(v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)); break;
                     case "hotkey": s.Hotkey = v; break;
                     case "pausemouseingames": s.PauseMouseInGames = !(v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)); break;
                     case "resumeaftergameseconds": if (double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) s.ResumeAfterGameSeconds = Math.Max(0, d); break;
@@ -286,13 +294,14 @@ namespace LeanbackMode
                     case "antimicroxprofile": if (v.Length > 0) s.AntiMicroXProfile = v; break;
                 }
             }
-            if (!seen.Contains("crossfadems") || !seen.Contains("pausemouseingames") || !seen.Contains("hotkey") || !seen.Contains("detectcontrollers") || !seen.Contains("stayinleanbackwhenasleep")) { try { s.Save(); } catch { } } // add new options to older files
+            if (!seen.Contains("crossfadems") || !seen.Contains("pausemouseingames") || !seen.Contains("hotkey") || !seen.Contains("detectcontrollers") || !seen.Contains("stayinleanbackwhenasleep") || !seen.Contains("screen")) { try { s.Save(); } catch { } } // add new options to older files
             s.ApplyToController();
             return s;
         }
 
         public void ApplyToController()
         {
+            DisplayScale.ScreenName = ScreenName;
             Controller.AllTypes = DetectControllers != "XInput";
             var ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var part in IgnoreControllers.Split(new[] { ';', ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
@@ -306,7 +315,14 @@ namespace LeanbackMode
             var sb = new StringBuilder();
             sb.AppendLine("# Leanback Mode settings. Save this file and changes apply right away.");
             sb.AppendLine("#");
-            sb.AppendLine("# Display scaling in percent. Windows allows 100, 125, 150, 175, 200, 225 on your screen.");
+            sb.AppendLine("# Which screen gets bigger in Leanback mode. Main = your main display, or a screen's name as Windows");
+            sb.AppendLine("# Settings > Display shows it (log.txt lists the connected ones), e.g. Screen=LG TV SSCR2. Other screens");
+            sb.AppendLine("# are never changed. If the named screen isn't connected (TV off), scaling is left alone until it is.");
+            sb.AppendLine("Screen=" + ScreenName);
+            sb.AppendLine("# Move the pointer onto that screen when Leanback mode starts (only if it's on another screen).");
+            sb.AppendLine("MovePointerToScreen=" + (MovePointerToScreen ? "true" : "false"));
+            sb.AppendLine("#");
+            sb.AppendLine("# Display scaling of that screen in percent. Windows allows 100, 125, 150, 175, 200, 225 on most screens.");
             sb.AppendLine("TvScale=" + TvScale);
             sb.AppendLine("NormalScale=" + NormalScale);
             sb.AppendLine("#");
@@ -529,6 +545,155 @@ namespace LeanbackMode
         }
     }
 
+    // ---------------------------------------------------------------- screens
+    // The connected screens, named the way Windows Settings names them ("LG TV SSCR2", "Built-in display").
+    // The same code is in Leanback Mode, AutoZoom and the toolkit app, so all of them name screens alike.
+    // Settings refer to a screen by Name; "Main" (or nothing) always means the main display.
+
+    class ScreenInfo
+    {
+        public string Name = "";     // friendly name, made unique ("DELL P2419H", "DELL P2419H 2")
+        public string Device = "";   // Windows' own name for it, e.g. \\.\DISPLAY2 (can change between restarts)
+        public bool Primary;
+        public int Left, Top, Right, Bottom;   // physical pixels
+        public IntPtr Handle;        // HMONITOR
+        public int Width { get { return Right - Left; } }
+        public int Height { get { return Bottom - Top; } }
+    }
+
+    static class Screens
+    {
+        [StructLayout(LayoutKind.Sequential)] struct SRECT { public int Left, Top, Right, Bottom; }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct MONITORINFOEX
+        {
+            public int cbSize; public SRECT rcMonitor; public SRECT rcWork; public uint dwFlags;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string szDevice;
+        }
+        [StructLayout(LayoutKind.Sequential)] struct SLUID { public uint Low; public int High; }
+        [StructLayout(LayoutKind.Sequential)] struct SHEADER { public int type; public int size; public SLUID adapterId; public uint id; }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct SOURCE_NAME { public SHEADER h; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string gdiName; }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct TARGET_NAME
+        {
+            public SHEADER h; public uint flags; public uint outputTechnology; public ushort edidManufactureId; public ushort edidProductCodeId;
+            public uint connectorInstance;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string monitorFriendlyDeviceName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string monitorDevicePath;
+        }
+        delegate bool MonitorEnumProc(IntPtr monitor, IntPtr dc, ref SRECT rect, IntPtr data);
+
+        [DllImport("user32.dll")] static extern bool EnumDisplayMonitors(IntPtr dc, IntPtr clip, MonitorEnumProc proc, IntPtr data);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFOEX info);
+        [DllImport("user32.dll")] static extern int GetDisplayConfigBufferSizes(uint flags, out uint numPaths, out uint numModes);
+        [DllImport("user32.dll")] static extern int QueryDisplayConfig(uint flags, ref uint numPaths, IntPtr paths, ref uint numModes, IntPtr modes, IntPtr topology);
+        [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref SOURCE_NAME p);
+        [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref TARGET_NAME p);
+
+        public const string Main = "Main";
+
+        public static bool IsMain(string name) { return string.IsNullOrEmpty(name) || name.Trim().Equals(Main, StringComparison.OrdinalIgnoreCase); }
+
+        // Main display first, then left to right.
+        public static List<ScreenInfo> List()
+        {
+            var names = FriendlyNames();
+            var list = new List<ScreenInfo>();
+            MonitorEnumProc proc = delegate(IntPtr h, IntPtr dc, ref SRECT r, IntPtr data)
+            {
+                var mi = new MONITORINFOEX();
+                mi.cbSize = Marshal.SizeOf(typeof(MONITORINFOEX));
+                if (!GetMonitorInfo(h, ref mi)) return true;
+                var s = new ScreenInfo();
+                s.Handle = h;
+                s.Device = mi.szDevice ?? "";
+                s.Primary = (mi.dwFlags & 1) != 0;
+                s.Left = mi.rcMonitor.Left; s.Top = mi.rcMonitor.Top; s.Right = mi.rcMonitor.Right; s.Bottom = mi.rcMonitor.Bottom;
+                string n;
+                s.Name = names.TryGetValue(s.Device, out n) ? n : "";
+                list.Add(s);
+                return true;
+            };
+            try { EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, proc, IntPtr.Zero); } catch { }
+            GC.KeepAlive(proc);
+            list.Sort(delegate(ScreenInfo a, ScreenInfo b)
+            {
+                if (a.Primary != b.Primary) return a.Primary ? -1 : 1;
+                return a.Left != b.Left ? a.Left.CompareTo(b.Left) : a.Top.CompareTo(b.Top);
+            });
+            var used = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < list.Count; i++)
+            {
+                string n = list[i].Name.Trim();
+                if (n.Length == 0) n = "Screen " + (i + 1);
+                if (n.Equals(Main, StringComparison.OrdinalIgnoreCase)) n = n + " screen";
+                int count;
+                used.TryGetValue(n, out count);
+                used[n] = count + 1;
+                list[i].Name = count == 0 ? n : n + " " + (count + 1);
+            }
+            return list;
+        }
+
+        // The screen a setting names. "Main" or empty -> the main display. Returns null if that screen isn't connected.
+        public static ScreenInfo Find(List<ScreenInfo> list, string name)
+        {
+            if (IsMain(name))
+            {
+                foreach (var s in list) if (s.Primary) return s;
+                return list.Count > 0 ? list[0] : null;
+            }
+            foreach (var s in list) if (s.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase)) return s;
+            return null;
+        }
+
+        public static ScreenInfo FromHandle(List<ScreenInfo> list, IntPtr monitor)
+        {
+            foreach (var s in list) if (s.Handle == monitor) return s;
+            return null;
+        }
+
+        // \\.\DISPLAY1 -> "LG ULTRAGEAR". Built-in laptop panels have no name of their own, so they're "Built-in display".
+        static Dictionary<string, string> FriendlyNames()
+        {
+            var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                const uint QDC_ONLY_ACTIVE_PATHS = 2;
+                const int PathSize = 72, ModeSize = 64;
+                uint np, nm;
+                if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out np, out nm) != 0 || np == 0) return d;
+                IntPtr paths = Marshal.AllocHGlobal((int)np * PathSize), modes = Marshal.AllocHGlobal((int)Math.Max(nm, 1) * ModeSize);
+                try
+                {
+                    if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref np, paths, ref nm, modes, IntPtr.Zero) != 0) return d;
+                    for (int i = 0; i < np; i++)
+                    {
+                        IntPtr p = new IntPtr(paths.ToInt64() + i * PathSize);
+                        var sn = new SOURCE_NAME();
+                        sn.h.type = 1; sn.h.size = Marshal.SizeOf(typeof(SOURCE_NAME));
+                        sn.h.adapterId.Low = (uint)Marshal.ReadInt32(p, 0); sn.h.adapterId.High = Marshal.ReadInt32(p, 4);
+                        sn.h.id = (uint)Marshal.ReadInt32(p, 8);
+                        if (DisplayConfigGetDeviceInfo(ref sn) != 0 || string.IsNullOrEmpty(sn.gdiName) || d.ContainsKey(sn.gdiName)) continue;
+                        var tn = new TARGET_NAME();
+                        tn.h.type = 2; tn.h.size = Marshal.SizeOf(typeof(TARGET_NAME));
+                        tn.h.adapterId.Low = (uint)Marshal.ReadInt32(p, 20); tn.h.adapterId.High = Marshal.ReadInt32(p, 24);
+                        tn.h.id = (uint)Marshal.ReadInt32(p, 28);
+                        if (DisplayConfigGetDeviceInfo(ref tn) != 0) continue;
+                        string name = (tn.monitorFriendlyDeviceName ?? "").Trim();
+                        uint tech = tn.outputTechnology;
+                        if (name.Length == 0 && (tech == 0x80000000u || tech == 11 || tech == 13)) name = "Built-in display";
+                        d[sn.gdiName] = name;
+                    }
+                }
+                finally { Marshal.FreeHGlobal(paths); Marshal.FreeHGlobal(modes); }
+            }
+            catch { }
+            return d;
+        }
+    }
+
     // ---------------------------------------------------------------- display scaling
 
     // Uses the same (undocumented) DisplayConfig calls the Windows Settings app uses for per-display scaling.
@@ -551,10 +716,31 @@ namespace LeanbackMode
         const int GET_SOURCE_NAME = 1, GET_DPI = -3, SET_DPI = -4;
         static readonly int[] Steps = { 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500 };
 
-        static bool FindPrimary(out LUID adapter, out uint sourceId)
+        // The screen Leanback mode changes (settings: Screen=). Set from the settings whenever they load.
+        public static string ScreenName = Screens.Main;
+
+        // Windows' device name (\\.\DISPLAYn) of that screen, or null if it isn't connected.
+        public static string TargetDevice()
+        {
+            var t = Screens.Find(Screens.List(), ScreenName);
+            if (t != null) return t.Device;
+            return Screens.IsMain(ScreenName) ? Screen.PrimaryScreen.DeviceName : null;
+        }
+
+        // Where to show the transition overlay: the Leanback screen, or the main display if it isn't connected.
+        public static Rectangle TargetBounds()
+        {
+            var list = Screens.List();
+            var t = Screens.Find(list, ScreenName) ?? Screens.Find(list, Screens.Main);
+            return t != null ? Rectangle.FromLTRB(t.Left, t.Top, t.Right, t.Bottom) : Screen.PrimaryScreen.Bounds;
+        }
+
+        static bool FindDevice(string device, out LUID adapter, out uint sourceId)
         {
             adapter = new LUID(); sourceId = 0;
-            string primary = Screen.PrimaryScreen.DeviceName;
+            if (device == null) return false;
+            bool anyMatch = Screens.IsMain(ScreenName); // a named screen must match exactly; never change another one
+            string primary = device;
             uint np, nm;
             if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out np, out nm) != 0 || np == 0) return false;
             IntPtr paths = Marshal.AllocHGlobal((int)np * 72), modes = Marshal.AllocHGlobal((int)Math.Max(nm, 1) * 64);
@@ -571,7 +757,7 @@ namespace LeanbackMode
                     sn.h.type = GET_SOURCE_NAME; sn.h.size = Marshal.SizeOf(typeof(SOURCE_NAME)); sn.h.adapterId = luid; sn.h.id = sid;
                     DisplayConfigGetDeviceInfo(ref sn);
                     bool match = string.Equals(sn.gdiName, primary, StringComparison.OrdinalIgnoreCase);
-                    if (!found || match)
+                    if (match || (!found && anyMatch))
                     {
                         adapter = luid; sourceId = sid; found = true;
                         if (match) return true;
@@ -582,10 +768,12 @@ namespace LeanbackMode
             finally { Marshal.FreeHGlobal(paths); Marshal.FreeHGlobal(modes); }
         }
 
-        static bool Query(out LUID adapter, out uint sourceId, out DPI_GET info)
+        static bool Query(out LUID adapter, out uint sourceId, out DPI_GET info) { return Query(TargetDevice(), out adapter, out sourceId, out info); }
+
+        static bool Query(string device, out LUID adapter, out uint sourceId, out DPI_GET info)
         {
             info = new DPI_GET();
-            if (!FindPrimary(out adapter, out sourceId)) return false;
+            if (!FindDevice(device, out adapter, out sourceId)) return false;
             info.h.type = GET_DPI; info.h.size = Marshal.SizeOf(typeof(DPI_GET)); info.h.adapterId = adapter; info.h.id = sourceId;
             return DisplayConfigGetDeviceInfo(ref info) == 0;
         }
@@ -601,10 +789,12 @@ namespace LeanbackMode
             return Math.Max(g.minRel, Math.Min(g.maxRel, target - recIdx));
         }
 
-        public static int GetCurrent()
+        public static int GetCurrent() { return GetCurrent(TargetDevice()); }
+
+        public static int GetCurrent(string device)
         {
             LUID a; uint id; DPI_GET g;
-            if (!Query(out a, out id, out g)) return -1;
+            if (device == null || !Query(device, out a, out id, out g)) return -1;
             int idx = Math.Abs(g.minRel) + g.curRel;
             return (idx >= 0 && idx < Steps.Length) ? Steps[idx] : -1;
         }
@@ -616,10 +806,14 @@ namespace LeanbackMode
             return TargetRel(g, percent) != g.curRel;
         }
 
-        public static string Set(int percent)
+        public static string Set(int percent) { return Set(percent, TargetDevice()); }
+
+        // device = \\.\DISPLAYn of the screen to change.
+        public static string Set(int percent, string device)
         {
             LUID a; uint id; DPI_GET g;
-            if (!Query(out a, out id, out g)) return "could not read display scaling";
+            if (device == null) return "the Leanback screen (" + ScreenName + ") isn't connected, so scaling was left alone";
+            if (!Query(device, out a, out id, out g)) return "could not read display scaling";
             int rel = TargetRel(g, percent);
             if (rel == g.curRel) return null; // already there
             var s = new DPI_SET();
@@ -1018,7 +1212,7 @@ namespace LeanbackMode
         {
             total.Start();
             Native.timeBeginPeriod(1);
-            bounds = Screen.PrimaryScreen.Bounds;
+            bounds = DisplayScale.TargetBounds();
             var sw = Stopwatch.StartNew();
             using (var small = Visuals.CaptureSmall(bounds))
                 bg1 = Visuals.MakeBackdrop(small, bounds.Size, tv, reason, out indicator);
@@ -1355,6 +1549,9 @@ namespace LeanbackMode
         readonly NotifyIcon tray = new NotifyIcon();
         readonly System.Windows.Forms.Timer poll = new System.Windows.Forms.Timer();
         readonly System.Windows.Forms.Timer reloadDebounce = new System.Windows.Forms.Timer();
+        readonly System.Windows.Forms.Timer displayDebounce = new System.Windows.Forms.Timer();
+        string activeDevice;      // the screen (\\.\DISPLAYn) Leanback mode last applied to; null = not connected
+        ToolStripMenuItem screenMenu;
         readonly Control invoker = new Control();
         FileSystemWatcher watcher;
         readonly Icon iconTv, iconNormal;
@@ -1406,11 +1603,14 @@ namespace LeanbackMode
             menu.Items.Add(autoItem);
             menu.Items.Add(tvItem);
             menu.Items.Add(normalItem);
+            screenMenu = new ToolStripMenuItem("Leanback screen");
+            screenMenu.DropDownItems.Add("(none)"); // filled in when the menu opens
+            menu.Items.Add(screenMenu);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(mouseStatusItem);
             menu.Items.Add(pauseInGamesItem);
             menu.Items.Add(new ToolStripSeparator());
-            menu.Opening += delegate { UpdateUi(); };
+            menu.Opening += delegate { UpdateUi(); FillScreenMenu(); };
             menu.Items.Add(new ToolStripMenuItem("Preview transition", null, delegate { Preview(); }));
             menu.Items.Add(new ToolStripMenuItem("Edit settings...", null, delegate { Process.Start("notepad.exe", "\"" + Settings.FilePath + "\""); }));
             menu.Items.Add(new ToolStripMenuItem("Exit (back to desktop mode)", null, delegate { ExitApp(); }));
@@ -1429,6 +1629,7 @@ namespace LeanbackMode
             lastFound = Controller.Find();
             rawConnected = stableConnected = lastFound != null;
             Log.Write("started; controller " + (rawConnected ? "on: " + lastFound : "off") + ", mode " + settings.Mode);
+            LogScreens();
             LoadOverride();
             tray.Icon = iconNormal;
             tray.Visible = settings.ShowTrayIcon;
@@ -1437,6 +1638,21 @@ namespace LeanbackMode
             poll.Interval = 250;
             poll.Tick += delegate { Tick(); };
             poll.Start();
+
+            // A screen was plugged in, unplugged, switched on or off (a TV usually disappears when it's off):
+            // if that changes which screen Leanback mode is for, apply the current mode to it.
+            displayDebounce.Interval = 1500;
+            displayDebounce.Tick += delegate
+            {
+                displayDebounce.Stop();
+                if (busy) { displayDebounce.Start(); return; }
+                string dev = DisplayScale.TargetDevice();
+                if (string.Equals(dev, activeDevice, StringComparison.OrdinalIgnoreCase)) return;
+                LogScreens();
+                pendingReason = "Screen connected";
+                Apply(true);
+            };
+            Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
 
             reloadDebounce.Interval = 400;
             reloadDebounce.Tick += delegate { reloadDebounce.Stop(); ReloadSettings(); };
@@ -1657,10 +1873,101 @@ namespace LeanbackMode
             return idleWhenLost.TotalMinutes >= settings.AsleepAfterIdleMinutes;
         }
 
+        void OnDisplayChanged(object sender, EventArgs e)
+        {
+            try { invoker.BeginInvoke((MethodInvoker)delegate { displayDebounce.Stop(); displayDebounce.Start(); }); } catch { }
+        }
+
+        void LogScreens()
+        {
+            var sb = new StringBuilder("screens: ");
+            var list = Screens.List();
+            for (int i = 0; i < list.Count; i++)
+                sb.Append(i > 0 ? "; " : "").Append(list[i].Name).Append(" (").Append(list[i].Width).Append('x').Append(list[i].Height)
+                  .Append(list[i].Primary ? ", main" : "").Append(')');
+            string dev = DisplayScale.TargetDevice();
+            sb.Append(". Leanback screen: ").Append(settings.ScreenName).Append(dev == null ? " (not connected)" : "");
+            Log.Write(sb.ToString());
+        }
+
+        void FillScreenMenu()
+        {
+            screenMenu.DropDownItems.Clear();
+            var list = Screens.List();
+            var names = new List<string> { Screens.Main };
+            foreach (var sc in list) names.Add(sc.Name);
+            if (!Screens.IsMain(settings.ScreenName) && Screens.Find(list, settings.ScreenName) == null) names.Add(settings.ScreenName);
+            foreach (var n in names)
+            {
+                string name = n;
+                var sc = Screens.IsMain(name) ? null : Screens.Find(list, name);
+                string label = Screens.IsMain(name) ? "Main display" : sc == null ? name + " (not connected)" : name + (sc.Primary ? " (main display)" : "");
+                var item = new ToolStripMenuItem(label, null, delegate { ChooseScreen(name); });
+                item.Checked = Screens.IsMain(name) ? Screens.IsMain(settings.ScreenName) : name.Equals(settings.ScreenName, StringComparison.OrdinalIgnoreCase);
+                screenMenu.DropDownItems.Add(item);
+            }
+        }
+
+        void ChooseScreen(string name)
+        {
+            if (string.Equals(name, settings.ScreenName, StringComparison.OrdinalIgnoreCase)) return;
+            string oldDev = activeDevice;
+            int oldNormal = settings.NormalScale;
+            bool wasTv = appliedTv.HasValue && appliedTv.Value;
+            settings.ScreenName = name;
+            settings.ApplyToController();
+            ScreenChosen(oldDev, oldNormal, wasTv);
+            try { settings.Save(); } catch (Exception ex) { Log.Write("save failed: " + ex.Message); }
+            pendingReason = "Leanback screen: " + (Screens.IsMain(name) ? "main display" : name);
+            Apply(true);
+        }
+
+        // Leanback mode now belongs to another screen. Put the old one back the way it was, and take the new
+        // screen's current scaling as its desktop-mode size (it hasn't been touched, so that's its normal).
+        void ScreenChosen(string oldDev, int oldNormal, bool wasTv)
+        {
+            string dev = DisplayScale.TargetDevice();
+            LogScreens();
+            if (oldDev != null && wasTv && !string.Equals(oldDev, dev, StringComparison.OrdinalIgnoreCase))
+            {
+                string err = DisplayScale.Set(oldNormal, oldDev);
+                Log.Write("previous Leanback screen back to " + oldNormal + "%" + (err != null ? "; " + err : ""));
+            }
+            if (dev != null && !string.Equals(oldDev, dev, StringComparison.OrdinalIgnoreCase))
+            {
+                int cur = DisplayScale.GetCurrent(dev);
+                if (cur > 0 && cur != settings.NormalScale)
+                {
+                    settings.NormalScale = cur;
+                    if (settings.TvScale <= cur) settings.TvScale = cur + 50; // Leanback mode should always be bigger
+                    try { settings.Save(); } catch (Exception ex) { Log.Write("save failed: " + ex.Message); }
+                    Log.Write("desktop size on the new Leanback screen is " + cur + "%");
+                }
+            }
+            activeDevice = dev;
+        }
+
+        // Leanback mode just started: put the pointer on the Leanback screen if it's somewhere else.
+        void BringPointer()
+        {
+            if (!settings.MovePointerToScreen) return;
+            try
+            {
+                var t = Screens.Find(Screens.List(), settings.ScreenName);
+                if (t == null) return;
+                var p = Cursor.Position;
+                if (p.X >= t.Left && p.X < t.Right && p.Y >= t.Top && p.Y < t.Bottom) return;
+                Cursor.Position = new Point((t.Left + t.Right) / 2, (t.Top + t.Bottom) / 2);
+                Log.Write("pointer moved to " + t.Name);
+            }
+            catch (Exception ex) { Log.Write("couldn't move the pointer: " + ex.Message); }
+        }
+
         void Apply(bool force)
         {
             if (busy) return; // re-checked when the current transition finishes
             bool tv = WantTv;
+            activeDevice = DisplayScale.TargetDevice();
             if (!force && appliedTv.HasValue && appliedTv.Value == tv) { UpdateUi(); return; }
 
             int scale = tv ? settings.TvScale : settings.NormalScale;
@@ -1669,7 +1976,7 @@ namespace LeanbackMode
             string reason = pendingReason ?? "controller";
             pendingReason = null;
 
-            if (!needed) { appliedTv = tv; UpdateUi(); return; }
+            if (!needed) { bool entering = tv && !(appliedTv.HasValue && appliedTv.Value); appliedTv = tv; if (entering) BringPointer(); UpdateUi(); return; }
 
             Transition.Work work = MakeWork(scale, pointer);
 
@@ -1716,7 +2023,9 @@ namespace LeanbackMode
 
         void Done(bool tv, string err)
         {
+            bool entering = tv && !(appliedTv.HasValue && appliedTv.Value);
             appliedTv = tv;
+            if (entering) BringPointer();
             Log.Write((tv ? "Leanback mode" : "desktop mode") + " applied" + (err != null ? "; " + err : ""));
             UpdateUi();
             if (exitRequested) { ExitApp(); return; }
@@ -1748,7 +2057,11 @@ namespace LeanbackMode
         {
             try
             {
+                string oldName = settings.ScreenName, oldDev = activeDevice;
+                int oldNormal = settings.NormalScale;
+                bool wasTv = appliedTv.HasValue && appliedTv.Value;
                 settings = Settings.Load();
+                if (!string.Equals(oldName, settings.ScreenName, StringComparison.OrdinalIgnoreCase)) ScreenChosen(oldDev, oldNormal, wasTv);
                 games.Configure(settings);
                 Log.Write("settings reloaded");
                 if (!string.Equals(hotkey.Current, settings.Hotkey, StringComparison.OrdinalIgnoreCase)) RegisterHotkey();
@@ -1789,7 +2102,9 @@ namespace LeanbackMode
                           "Controller=" + (stableConnected && lastFound != null ? lastFound : "") + Environment.NewLine +
                           "LastController=" + (lastFound ?? "") + Environment.NewLine +
                           "Mouse=" + mouse + (mousePausedByUs && pausedFor != null ? " (" + pausedFor + ")" : "") + Environment.NewLine +
-                          "Hotkey=" + (hotkey != null && hotkey.Current != null ? hotkey.Current : "") + Environment.NewLine;
+                          "Hotkey=" + (hotkey != null && hotkey.Current != null ? hotkey.Current : "") + Environment.NewLine +
+                          "Screen=" + settings.ScreenName + Environment.NewLine +
+                          "ScreenConnected=" + (activeDevice != null ? "true" : "false") + Environment.NewLine;
             if (text == lastStatus) return;
             lastStatus = text;
             try { File.WriteAllText(Path.Combine(Settings.Dir, "status.ini"), text); } catch { }
@@ -1818,6 +2133,7 @@ namespace LeanbackMode
             if (mousePausedByUs) ResumeMouse("Leanback Mode closing"); // never leave the controller mouse off
             try { File.Delete(Path.Combine(Settings.Dir, "status.ini")); } catch { }
             if (hotkey != null) hotkey.Dispose();
+            try { Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplayChanged; } catch { }
             tray.Visible = false;
             tray.Dispose();
             ExitThread();
