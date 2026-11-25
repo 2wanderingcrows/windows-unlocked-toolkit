@@ -123,34 +123,46 @@ def load_showcase():
     return data.get("tools", {}), data.get("upcoming", [])
 
 
+def rich(text):
+    """Escape text, then turn **bold** into <b>bold</b>."""
+    parts = html.escape(text).split("**")
+    return "".join(f"<b>{p}</b>" if i % 2 else p for i, p in enumerate(parts))
+
+
 def tool_card(t, show, index):
     e = html.escape
+    show = show or {}
     src = f"{REPO_URL}/tree/main/tools/{t['id']}"
-    if not show or not show.get("image"):
-        return (
-            f"    <article class=\"tool plain\" id=\"{e(t['id'])}\">\n"
-            f"      <h3>{e(t['name'])} <span class=\"ver\">v{e(t['version'])}</span></h3>\n"
-            f"      <p>{e(t['summary'])}</p>\n"
-            f"      <a class=\"more\" href=\"{src}\">Source and details &rarr;</a>\n"
-            "    </article>"
-        )
-    bullets = "\n".join(f"          <li>{e(b)}</li>" for b in show.get("bullets", []))
-    badge = "<span class=\"mock\">Illustration</span>" if show.get("mockup") else ""
-    flip = " flip" if index % 2 else ""
     accent = e(show.get("accent", ""))
     style = f" style=\"--tool:{accent}\"" if accent else ""
-    admin = "<span class=\"pill\">Needs admin</span>" if t.get("admin") else "<span class=\"pill\">No admin needed</span>"
+    image = show.get("image")
+    thumb = (f"<img src=\"{e(image)}\" alt=\"\" loading=\"lazy\">" if image
+             else f"<span>{e(t['name'][:1])}</span>")
+    bullets = "\n".join(f"          <li>{rich(b)}</li>" for b in show.get("bullets", []))
+    checks = f"        <ul class=\"checks\">\n{bullets}\n        </ul>\n" if bullets else ""
+    admin = "Needs admin" if t.get("admin") else "No admin needed"
+    figure = ""
+    if image:
+        badge = "<span class=\"mock\">Illustration</span>" if show.get("mockup") else ""
+        figure = (f"      <figure class=\"shot\">{badge}<img src=\"{e(image)}\" alt=\"{e(show.get('alt', ''))}\""
+                  " loading=\"lazy\" width=\"1200\" height=\"640\"></figure>\n")
     return (
-        f"    <article class=\"tool feature{flip}\" id=\"{e(t['id'])}\"{style}>\n"
+        f"    <details class=\"tool\" id=\"{e(t['id'])}\"{style}>\n"
+        "      <summary>\n"
+        f"        <span class=\"thumb\">{thumb}</span>\n"
+        f"        <span class=\"title\"><b>{e(t['name'])}</b> <span class=\"ver\">v{e(t['version'])}</span>"
+        f"<span class=\"tagline\">{e(show.get('tagline', t['summary']))}</span></span>\n"
+        "        <span class=\"chev\" aria-hidden=\"true\"></span>\n"
+        "      </summary>\n"
+        "      <div class=\"body\">\n"
         "      <div class=\"copy\">\n"
-        f"        <p class=\"eyebrow\">{e(t['name'])} <span class=\"ver\">v{e(t['version'])}</span></p>\n"
-        f"        <h3>{e(show.get('tagline', t['name']))}</h3>\n"
-        f"        <p class=\"problem\">{e(show.get('problem', t['summary']))}</p>\n"
-        f"        <ul class=\"checks\">\n{bullets}\n        </ul>\n"
-        f"        <div class=\"meta\">{admin}<a class=\"more\" href=\"{src}\">Source and details &rarr;</a></div>\n"
+        f"        <p class=\"problem\">{rich(show.get('problem', t['summary']))}</p>\n"
+        f"{checks}"
+        f"        <div class=\"meta\"><span class=\"pill\">{admin}</span><a class=\"more\" href=\"{src}\">Details and source &rarr;</a></div>\n"
         "      </div>\n"
-        f"      <figure class=\"shot\">{badge}<img src=\"{e(show['image'])}\" alt=\"{e(show.get('alt', ''))}\" loading=\"lazy\" width=\"1200\" height=\"640\"></figure>\n"
-        "    </article>"
+        f"{figure}"
+        "      </div>\n"
+        "    </details>"
     )
 
 

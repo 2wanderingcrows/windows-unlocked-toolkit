@@ -1,20 +1,20 @@
 {
-  "_about": "Marketing copy for the website, keyed by tool id. Optional: a tool without an entry still shows up with its tool.json summary. Images live in site/assets/. Set mockup to false once the image is a real screenshot.",
+  "_about": "Website copy, keyed by tool id. Keep it short: tagline (a few words), problem (one or two sentences, shown when a tool is opened), bullets (about 10 words each; **bold** works). Images live in site/assets/. Set mockup to false once the image is a real screenshot.",
   "tools": {
     "leanback": {
       "tagline": "Your PC, now a couch console.",
-      "problem": "Using a PC on the TV is clumsy: tiny text, a pointer you can't find, and a keyboard you don't want on your lap. Leanback Mode notices when you pick up a controller and rearranges Windows for the couch.",
+      "problem": "Pick up a controller and Windows rearranges itself for the couch. Put it down and your desktop is back.",
       "bullets": [
-        "Switches to Leanback mode the moment your controller turns on, and back to desktop mode when you switch it off",
-        "Controller dozed off mid-movie? You stay in Leanback mode until you turn it off yourself",
-        "Bigger text and a pointer you can actually see from across the room",
-        "Sticks move and scroll, buttons click, go back and open Start",
-        "Hold Y for a fast pointer that zips across a big TV or ultrawide in a blink, then let go for precise aiming",
-        "Hold LT and tilt the right stick to glide the volume up or down, or flip through your windows",
-        "Remap any button, or record your own key combos, right from the tray app",
-        "Steps aside on its own when you launch a game",
-        "Monitor and TV on one PC? Only the screen you pick gets bigger, and the pointer hops over to it",
-        "Works with Xbox, PlayStation, Switch Pro, 8BitDo and generic Bluetooth or 2.4 GHz pads"
+        "Turns on with your controller, off when you switch it off",
+        "Bigger text and a pointer you can see across the room",
+        "**Hold Y for a fast pointer** that crosses a big TV in a blink",
+        "Hold LT and tilt the right stick for volume or window switching",
+        "**Plays nice with Playnite, Steam Big Picture and Kodi**, handing them the controls while they're in front",
+        "**Map any button** to a key combo, or to open an app",
+        "**Finds every button on your controller**: Home, D-pad, paddles and extras",
+        "Steps aside on its own when a game starts",
+        "Monitor and TV? Only the screen you pick gets bigger",
+        "Xbox, PlayStation, Switch Pro, 8BitDo and generic Bluetooth or 2.4 GHz pads"
       ],
       "image": "assets/leanback.svg",
       "alt": "A TV showing large, couch-friendly Windows tiles and a big pointer, with a game controller in front of it",
@@ -23,13 +23,12 @@
     },
     "mediatabjump": {
       "tagline": "Who's making that noise? Found it.",
-      "problem": "Thirty tabs open and something is playing. Windows shows you what is playing, but not where. Media Tab Jump makes the player in the volume flyout a shortcut straight to the right tab.",
+      "problem": "Something's playing in one of thirty tabs. Click the player in the volume flyout and land right on it.",
       "bullets": [
-        "Click the now-playing card and land on the exact tab, even in another window",
-        "Works with Edge, Chrome, Brave, Firefox, Opera and Vivaldi",
-        "A soft, color-shifting glow tells you the card is clickable",
-        "Play, pause and skip buttons keep working like always",
-        "Browser on another screen? Jump to it there, or have the window come to the screen you clicked on",
+        "Jumps to the exact tab, even in another window or screen",
+        "Edge, Chrome, Brave, Firefox, Opera and Vivaldi",
+        "A soft glow shows the card is clickable",
+        "Play, pause and skip work like always",
         "No browser extension, nothing to sign in to"
       ],
       "image": "assets/mediatabjump.svg",
@@ -39,14 +38,13 @@
     },
     "autozoom": {
       "tagline": "Every app at a comfortable size.",
-      "problem": "An app that looks great full-screen can feel cramped in half the screen, and the other way round. AutoZoom lets you pick how zoomed in each app is when its window is maximized and when it isn't, and switches by itself as you resize.",
+      "problem": "Set how zoomed in each app is when maximized and when not. AutoZoom switches as you resize.",
       "bullets": [
-        "Any app that zooms with Ctrl and +: Claude, Teams, Discord, Slack, VS Code, Notepad, browsers",
-        "Two levels per app: one for maximized, one for everything else",
-        "Each window keeps its own zoom, so two windows of the same app never fight",
-        "Different levels per screen, so an app can be bigger on the TV than on your laptop, and switches as you drag it across",
-        "Add apps and set their zoom from the tray app, with changes applied instantly",
-        "Never reads the screen or what you type: it only presses the app's own zoom keys"
+        "Any app that zooms with Ctrl and +: Claude, Teams, Discord, VS Code, browsers",
+        "Each window keeps its own zoom",
+        "Different levels per screen, switching as you drag across",
+        "Set it all from the tray app, applied instantly",
+        "Only presses the app's own zoom keys, never reads the screen"
       ],
       "image": "assets/autozoom.svg",
       "alt": "The same app shown twice: maximized with larger text, and in a smaller window with text sized to fit",
@@ -55,14 +53,13 @@
     },
     "toolkit": {
       "tagline": "Every tool, one tidy tray icon.",
-      "problem": "Small helpers are great until you have five tray icons and five settings files. The toolkit tray app puts every tool behind one icon, with quick switches and a settings page for each.",
+      "problem": "Every tool behind one tray icon, with quick switches and a settings page for each.",
       "bullets": [
-        "Click once to flip between Leanback mode and desktop mode, or turn any tool on or off",
-        "Tune controller speed, scrolling and what every button does, without touching a config file",
-        "Pick the hover glow's colour, brightness and size, with a live preview",
-        "Choose which apps AutoZoom handles and how big each one gets",
-        "Light or dark, your Windows accent or one of nine colours, three tray icon styles",
-        "Pause everything for an hour when you need a plain PC"
+        "One click between Leanback and desktop mode",
+        "Controller speed, buttons and key combos without config files",
+        "Glow colours and AutoZoom levels with live preview",
+        "Light or dark, nine accent colours, three icon styles",
+        "Pause everything for an hour"
       ],
       "image": "assets/hero.svg",
       "alt": "The toolkit's tray menu: a Leanback mode card, tiles for Leanback Mode, Controller mouse, Media Tab Jump and Hover glow, and a Pause everything button",
@@ -73,12 +70,11 @@
   "upcoming": [
     {
       "name": "Window Tab Organizer",
-      "note": "For anyone with way too many windows open"
+      "note": "Tame way too many windows"
     },
-
     {
       "name": "Startup Minimizer",
-      "note": "Sign in to a calm desktop, not a pile of windows"
+      "note": "A calm desktop at sign-in"
     }
   ]
 }
