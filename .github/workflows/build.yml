@@ -135,6 +135,35 @@ jobs:
         shell: powershell
         run: ./scripts/build-setup.ps1 -SelfTest (Join-Path $env:RUNNER_TEMP 'setup-screens')
 
+      - name: Keep the unsigned setup app
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-unsigned
+          path: dist/WindowsUnlockedToolkitSetup.exe
+
+      # Code signing through SignPath Foundation (see CODE_SIGNING_POLICY.md). Runs on pushes to main once
+      # the repository has the SIGNPATH_ORGANIZATION_ID variable and SIGNPATH_API_TOKEN secret. Each request
+      # waits for an approver to approve it in SignPath. Without them the setup app stays unsigned.
+      - name: Sign the setup app (SignPath)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'windows-unlocked-toolkit' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist/signed
+
+      - name: Use the signed copy if there is one
+        shell: powershell
+        run: |
+          $signed = Get-ChildItem -Path dist/signed -Recurse -Filter WindowsUnlockedToolkitSetup.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($signed) { Copy-Item $signed.FullName dist/WindowsUnlockedToolkitSetup.exe -Force; Write-Host 'Using the signed setup app' }
+          else { Write-Host 'Setup app is unsigned' }
+
       - name: Keep the setup app with this run
         uses: actions/upload-artifact@v4
         with:

@@ -76,7 +76,13 @@ Coming later: Window Tab Organizer, Startup Minimizer.
 
 1. Download [`WindowsUnlockedToolkitSetup.exe`](https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkitSetup.exe).
 2. Open it. If Windows says it protected your PC, choose **More info**, then **Run anyway**.
+   That warning is a false alarm: the setup app isn't digitally signed yet. A
+   signed version is coming in an update, through SignPath Foundation's free
+   signing for open-source projects. If your browser blocks the download, open
+   your downloads list and choose **Keep**.
 3. Pick your tools and press **Install**. No admin rights needed.
+
+See the [code signing policy](CODE_SIGNING_POLICY.md) for how the setup app is built and signed.
 
 Updates install themselves in the background and keep your settings. You can
 turn that off in the tray app under **Updates and about**.
