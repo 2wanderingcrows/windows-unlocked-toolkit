@@ -61,6 +61,7 @@ up a controller and rearranges Windows for the couch.
 - ✅ Bigger text and a pointer you can actually see from across the room
 - ✅ Sticks move and scroll, buttons click, go back and open Start
 - ✅ Steps aside on its own when you launch a game
+- ✅ Monitor and TV on one PC? Only the screen you pick gets bigger, and the pointer hops over to it
 - ✅ Works with Xbox, PlayStation, Switch Pro, 8BitDo and generic Bluetooth or 2.4 GHz pads
 
 **Perfect for:** a PC plugged into the living-room TV, watching videos from bed, or anyone who'd rather hold a controller than a mouse.
@@ -79,6 +80,7 @@ flyout into a shortcut straight to the right tab.
 - ✅ Works with Edge, Chrome, Brave, Firefox, Opera and Vivaldi
 - ✅ A soft, color-shifting glow tells you the card is clickable
 - ✅ Play, pause and skip buttons keep working like always
+- ✅ Browser on another screen? Jump to it there, or have the window come to the screen you clicked on
 - ✅ No browser extension, nothing to sign in to
 
 **Perfect for:** tab hoarders, podcast listeners, and anyone who's ever hunted for the tab that started playing an ad.
@@ -96,6 +98,7 @@ its window is maximized and when it isn't, and switches by itself as you resize.
 - ✅ Any app that zooms with Ctrl and +: Claude, Teams, Discord, Slack, VS Code, Notepad, browsers
 - ✅ Two levels per app: one for maximized, one for everything else
 - ✅ Each window keeps its own zoom, so two windows of the same app never fight
+- ✅ Different levels per screen, so an app can be bigger on the TV than on your laptop, and switches as you drag it across
 - ✅ Add apps and set their zoom from the tray app, with changes applied instantly
 - ✅ Never reads the screen or what you type: it only presses the app's own zoom keys
 

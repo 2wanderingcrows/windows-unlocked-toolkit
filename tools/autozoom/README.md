@@ -55,6 +55,22 @@ Each window is tracked on its own, so two windows of the same app (say, two
 accounts side by side) never throw each other's zoom off.
 
 
+MORE THAN ONE SCREEN
+--------------------
+A size that's right on a laptop screen can be tiny on a big monitor or a TV.
+In the toolkit app's AutoZoom page, pick a screen under "Levels for" and set
+different levels for it. Apps you don't change there use their all-screens
+levels. When you drag a window to another screen, AutoZoom switches its zoom
+as soon as you let go.
+
+In settings.ini that's one extra line per app and screen, using the screen's
+name as Windows Settings > Display shows it ("Built-in display" for a laptop's
+own screen):
+
+    App.claude=4,1                  everywhere else
+    App.claude@LG TV SSCR2=7,3      on the TV
+
+
 REMOVE
 ------
 Double-click Uninstall.cmd. It stops AutoZoom, removes it from startup, and
@@ -65,7 +81,8 @@ the toolkit tray app, or in Task Manager > Startup apps ("AutoZoom").
 
 WHAT IT DOES (AND DOESN'T DO)
 -----------------------------
-- It checks which window is in front and whether it's maximized. Nothing else.
+- It checks which window is in front, whether it's maximized and which screen
+  it's on. Nothing else.
 - When a window of an app on your list changes between maximized and not, it
   presses that app's zoom keys (Ctrl with +, - or 0). The first time it sees a
   window it presses Ctrl+0 once to start from 100%.

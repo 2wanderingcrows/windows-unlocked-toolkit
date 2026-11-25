@@ -55,7 +55,7 @@ namespace UnlockedToolkit
 
     static class Program
     {
-        public const string Version = "1.1";
+        public const string Version = "1.2";
         public const string Site = "https://2wanderingcrows.github.io/windows-unlocked-toolkit/";
         public const string Repo = "https://github.com/2wanderingcrows/windows-unlocked-toolkit";
         public const string ShowEventName = "Local\\WindowsUnlockedToolkit_Show";
@@ -391,6 +391,155 @@ namespace UnlockedToolkit
                 }
             }
             catch (Exception ex) { Log.Write("couldn't change startup entry " + name + ": " + ex.Message); }
+        }
+    }
+
+    // ------------------------------------------------------------------ screens
+    // The connected screens, named the way Windows Settings names them ("LG TV SSCR2", "Built-in display").
+    // The same code is in Leanback Mode, AutoZoom and the toolkit app, so all of them name screens alike.
+    // Settings refer to a screen by Name; "Main" (or nothing) always means the main display.
+
+    class ScreenInfo
+    {
+        public string Name = "";     // friendly name, made unique ("DELL P2419H", "DELL P2419H 2")
+        public string Device = "";   // Windows' own name for it, e.g. \\.\DISPLAY2 (can change between restarts)
+        public bool Primary;
+        public int Left, Top, Right, Bottom;   // physical pixels
+        public IntPtr Handle;        // HMONITOR
+        public int Width { get { return Right - Left; } }
+        public int Height { get { return Bottom - Top; } }
+    }
+
+    static class Screens
+    {
+        [StructLayout(LayoutKind.Sequential)] struct SRECT { public int Left, Top, Right, Bottom; }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct MONITORINFOEX
+        {
+            public int cbSize; public SRECT rcMonitor; public SRECT rcWork; public uint dwFlags;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string szDevice;
+        }
+        [StructLayout(LayoutKind.Sequential)] struct SLUID { public uint Low; public int High; }
+        [StructLayout(LayoutKind.Sequential)] struct SHEADER { public int type; public int size; public SLUID adapterId; public uint id; }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct SOURCE_NAME { public SHEADER h; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string gdiName; }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct TARGET_NAME
+        {
+            public SHEADER h; public uint flags; public uint outputTechnology; public ushort edidManufactureId; public ushort edidProductCodeId;
+            public uint connectorInstance;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string monitorFriendlyDeviceName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string monitorDevicePath;
+        }
+        delegate bool MonitorEnumProc(IntPtr monitor, IntPtr dc, ref SRECT rect, IntPtr data);
+
+        [DllImport("user32.dll")] static extern bool EnumDisplayMonitors(IntPtr dc, IntPtr clip, MonitorEnumProc proc, IntPtr data);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFOEX info);
+        [DllImport("user32.dll")] static extern int GetDisplayConfigBufferSizes(uint flags, out uint numPaths, out uint numModes);
+        [DllImport("user32.dll")] static extern int QueryDisplayConfig(uint flags, ref uint numPaths, IntPtr paths, ref uint numModes, IntPtr modes, IntPtr topology);
+        [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref SOURCE_NAME p);
+        [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref TARGET_NAME p);
+
+        public const string Main = "Main";
+
+        public static bool IsMain(string name) { return string.IsNullOrEmpty(name) || name.Trim().Equals(Main, StringComparison.OrdinalIgnoreCase); }
+
+        // Main display first, then left to right.
+        public static List<ScreenInfo> List()
+        {
+            var names = FriendlyNames();
+            var list = new List<ScreenInfo>();
+            MonitorEnumProc proc = delegate(IntPtr h, IntPtr dc, ref SRECT r, IntPtr data)
+            {
+                var mi = new MONITORINFOEX();
+                mi.cbSize = Marshal.SizeOf(typeof(MONITORINFOEX));
+                if (!GetMonitorInfo(h, ref mi)) return true;
+                var s = new ScreenInfo();
+                s.Handle = h;
+                s.Device = mi.szDevice ?? "";
+                s.Primary = (mi.dwFlags & 1) != 0;
+                s.Left = mi.rcMonitor.Left; s.Top = mi.rcMonitor.Top; s.Right = mi.rcMonitor.Right; s.Bottom = mi.rcMonitor.Bottom;
+                string n;
+                s.Name = names.TryGetValue(s.Device, out n) ? n : "";
+                list.Add(s);
+                return true;
+            };
+            try { EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, proc, IntPtr.Zero); } catch { }
+            GC.KeepAlive(proc);
+            list.Sort(delegate(ScreenInfo a, ScreenInfo b)
+            {
+                if (a.Primary != b.Primary) return a.Primary ? -1 : 1;
+                return a.Left != b.Left ? a.Left.CompareTo(b.Left) : a.Top.CompareTo(b.Top);
+            });
+            var used = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < list.Count; i++)
+            {
+                string n = list[i].Name.Trim();
+                if (n.Length == 0) n = "Screen " + (i + 1);
+                if (n.Equals(Main, StringComparison.OrdinalIgnoreCase)) n = n + " screen";
+                int count;
+                used.TryGetValue(n, out count);
+                used[n] = count + 1;
+                list[i].Name = count == 0 ? n : n + " " + (count + 1);
+            }
+            return list;
+        }
+
+        // The screen a setting names. "Main" or empty -> the main display. Returns null if that screen isn't connected.
+        public static ScreenInfo Find(List<ScreenInfo> list, string name)
+        {
+            if (IsMain(name))
+            {
+                foreach (var s in list) if (s.Primary) return s;
+                return list.Count > 0 ? list[0] : null;
+            }
+            foreach (var s in list) if (s.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase)) return s;
+            return null;
+        }
+
+        public static ScreenInfo FromHandle(List<ScreenInfo> list, IntPtr monitor)
+        {
+            foreach (var s in list) if (s.Handle == monitor) return s;
+            return null;
+        }
+
+        // \\.\DISPLAY1 -> "LG ULTRAGEAR". Built-in laptop panels have no name of their own, so they're "Built-in display".
+        static Dictionary<string, string> FriendlyNames()
+        {
+            var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                const uint QDC_ONLY_ACTIVE_PATHS = 2;
+                const int PathSize = 72, ModeSize = 64;
+                uint np, nm;
+                if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out np, out nm) != 0 || np == 0) return d;
+                IntPtr paths = Marshal.AllocHGlobal((int)np * PathSize), modes = Marshal.AllocHGlobal((int)Math.Max(nm, 1) * ModeSize);
+                try
+                {
+                    if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref np, paths, ref nm, modes, IntPtr.Zero) != 0) return d;
+                    for (int i = 0; i < np; i++)
+                    {
+                        IntPtr p = new IntPtr(paths.ToInt64() + i * PathSize);
+                        var sn = new SOURCE_NAME();
+                        sn.h.type = 1; sn.h.size = Marshal.SizeOf(typeof(SOURCE_NAME));
+                        sn.h.adapterId.Low = (uint)Marshal.ReadInt32(p, 0); sn.h.adapterId.High = Marshal.ReadInt32(p, 4);
+                        sn.h.id = (uint)Marshal.ReadInt32(p, 8);
+                        if (DisplayConfigGetDeviceInfo(ref sn) != 0 || string.IsNullOrEmpty(sn.gdiName) || d.ContainsKey(sn.gdiName)) continue;
+                        var tn = new TARGET_NAME();
+                        tn.h.type = 2; tn.h.size = Marshal.SizeOf(typeof(TARGET_NAME));
+                        tn.h.adapterId.Low = (uint)Marshal.ReadInt32(p, 20); tn.h.adapterId.High = Marshal.ReadInt32(p, 24);
+                        tn.h.id = (uint)Marshal.ReadInt32(p, 28);
+                        if (DisplayConfigGetDeviceInfo(ref tn) != 0) continue;
+                        string name = (tn.monitorFriendlyDeviceName ?? "").Trim();
+                        uint tech = tn.outputTechnology;
+                        if (name.Length == 0 && (tech == 0x80000000u || tech == 11 || tech == 13)) name = "Built-in display";
+                        d[sn.gdiName] = name;
+                    }
+                }
+                finally { Marshal.FreeHGlobal(paths); Marshal.FreeHGlobal(modes); }
+            }
+            catch { }
+            return d;
         }
     }
 
@@ -890,6 +1039,35 @@ namespace UnlockedToolkit
         public void Mark(bool on) { Set(ref selected, on, "IsSelected"); }
     }
 
+    // A screen you can pick (Leanback screen, AutoZoom levels per screen).
+    class ScreenChip : Obs
+    {
+        readonly Action<ScreenChip> picked;
+        bool selected;
+        public string Key { get; private set; }     // a screen name, "Main", or "" for "all screens"
+        public string Label { get; private set; }
+        public string Sub { get; private set; }
+        public string Group { get; private set; }   // keeps each page's chips a separate radio group
+        public bool Off { get; private set; }       // not connected right now
+        public double Glyph { get { return Off ? 0.4 : 1.0; } }
+        public string Aria { get { return Label + (Sub.Length > 0 ? ", " + Sub : ""); } }
+        public ScreenChip(string group, string key, string label, string sub, bool off, Action<ScreenChip> picked)
+        {
+            Group = group; Key = key; Label = label; Sub = sub ?? ""; Off = off; this.picked = picked;
+        }
+        public bool IsSelected
+        {
+            get { return selected; }
+            set { if (Set(ref selected, value) && value && picked != null) picked(this); }
+        }
+        public void Mark(bool on) { Set(ref selected, on, "IsSelected"); }
+
+        public static string Describe(ScreenInfo s)
+        {
+            return s.Width + " \u00D7 " + s.Height + (s.Primary ? " \u00B7 main" : "");
+        }
+    }
+
     // ------------------------------------------------------------------ All tools page
 
     class ToolCard : Obs
@@ -987,6 +1165,7 @@ namespace UnlockedToolkit
 
         public ObservableCollection<Mapping> Mappings { get; private set; }
         public ObservableCollection<Device> Devices { get; private set; }
+        public ObservableCollection<ScreenChip> ScreenChips { get; private set; }
         public ICommand ToggleTv { get; private set; }
         public ICommand ChangeHotkey { get; private set; }
 
@@ -998,6 +1177,7 @@ namespace UnlockedToolkit
             Mappings = new ObservableCollection<Mapping>();
             foreach (var b in MouseLayout.Buttons) Mappings.Add(new Mapping(this, b[0]));
             Devices = new ObservableCollection<Device>();
+            ScreenChips = new ObservableCollection<ScreenChip>();
             ToggleTv = new Cmd(shell.ToggleTv);
             ChangeHotkey = new Cmd(delegate { Capturing = !Capturing; });
         }
@@ -1006,9 +1186,10 @@ namespace UnlockedToolkit
 
         public void LoadSettings()
         {
-            cfg = Shell.Demo ? Ini.Pairs("TvScale", "175", "NormalScale", "125", "TvPointerSize", "64", "Hotkey", "Ctrl+Alt+T", "Mode", "Auto")
+            cfg = Shell.Demo ? Ini.Pairs("TvScale", "175", "NormalScale", "125", "TvPointerSize", "64", "Hotkey", "Ctrl+Alt+T", "Mode", "Auto", "Screen", "LG TV SSCR2")
                              : Ini.Read(P.LeanSettings);
             foreach (var kv in pending) cfg[kv.Key] = kv.Value; // keep edits that haven't been written yet
+            RebuildScreens();
             RaiseAll();
         }
 
@@ -1024,6 +1205,49 @@ namespace UnlockedToolkit
             RebuildDevices();
             RaiseAll();
         }
+
+        // ---- which screen
+
+        public void ScreensChanged() { RebuildScreens(); RaiseAll(); }
+
+        string ScreenName { get { return C("Screen", Screens.Main); } }
+
+        void RebuildScreens()
+        {
+            var list = shell.ScreenList;
+            string cur = ScreenName;
+            var want = new List<ScreenChip>();
+            Action<ScreenChip> pick = delegate(ScreenChip c) { Put("Screen", c.Key); };
+            var main = Screens.Find(list, Screens.Main);
+            want.Add(new ScreenChip("LbScreen", Screens.Main, "Main display", main != null ? main.Name : "", false, pick));
+            foreach (var sc in list) if (!sc.Primary) want.Add(new ScreenChip("LbScreen", sc.Name, sc.Name, ScreenChip.Describe(sc), false, pick));
+            if (!Screens.IsMain(cur) && Screens.Find(list, cur) == null) want.Add(new ScreenChip("LbScreen", cur, cur, "Not connected", true, pick));
+            bool same = want.Count == ScreenChips.Count;
+            for (int i = 0; same && i < want.Count; i++) same = want[i].Key == ScreenChips[i].Key && want[i].Sub == ScreenChips[i].Sub;
+            if (!same) { ScreenChips.Clear(); foreach (var c in want) ScreenChips.Add(c); }
+            foreach (var c in ScreenChips) c.Mark(Screens.IsMain(cur) ? Screens.IsMain(c.Key) : c.Key.Equals(cur, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public bool MultiScreen { get { return shell.ScreenList.Count > 1 || !Screens.IsMain(ScreenName); } }
+
+        bool ScreenOff { get { return !Screens.IsMain(ScreenName) && Screens.Find(shell.ScreenList, ScreenName) == null; } }
+
+        public string ScreenHint
+        {
+            get
+            {
+                if (ScreenOff) return ScreenName + " isn't connected right now (a TV that's switched off usually isn't). Leanback mode uses it as soon as it's back, and leaves your other screens alone meanwhile.";
+                return "The screen that gets bigger. Your other screens stay as they are.";
+            }
+        }
+
+        public bool MovePointer
+        {
+            get { return Ini.Bool(cfg, "MovePointerToScreen", true); }
+            set { Put("MovePointerToScreen", value ? "true" : "false"); }
+        }
+
+        public string DeskHint { get { return MultiScreen ? "Normal scaling of the Leanback screen." : "Your normal Windows scaling."; } }
 
         public void Flush() { saveCfg.Flush(); saveLayout.Flush(); }
 
@@ -1109,6 +1333,7 @@ namespace UnlockedToolkit
                 string why = Ini.Get(S.Status, "Why", "");
                 string controller = Ini.Get(S.Status, "Controller", "");
                 if (Tv && why == "controller asleep") return "Leanback mode \u00B7 controller asleep";
+                if (Tv && !Screens.IsMain(ScreenName)) return "Leanback mode \u00B7 on " + ScreenName + (ScreenOff ? " (not connected)" : "");
                 if (Tv && controller.Length > 0) return "Leanback mode \u00B7 " + Shell.ShortName(controller);
                 return (Tv ? "Leanback mode" : "Desktop mode") + (why == "shortcut" ? " \u00B7 switched by you" : why == "always" ? " \u00B7 always" : "");
             }
@@ -1372,7 +1597,8 @@ namespace UnlockedToolkit
         {
             if (!Mtj.Installed && !Shell.Demo) return;
             Ini.Update(P.MtjSettings, Ini.Pairs("GlowStyle", Style, "GlowColor", Ini.Get(cfg, "GlowColor", Theme.Hex(Theme.Accent)),
-                "GlowBrightness", Brightness.ToString("0", CultureInfo.InvariantCulture), "GlowSize", Size.ToString("0", CultureInfo.InvariantCulture)));
+                "GlowBrightness", Brightness.ToString("0", CultureInfo.InvariantCulture), "GlowSize", Size.ToString("0", CultureInfo.InvariantCulture),
+                "BringToMyScreen", BringHere ? "true" : "false"));
         }
 
         static Brush StyleBrush(string key)
@@ -1393,6 +1619,13 @@ namespace UnlockedToolkit
         }
 
         public string Style { get { return Ini.Get(cfg, "GlowStyle", "Shift"); } }
+
+        public bool MultiScreen { get { return shell.ScreenList.Count > 1 || BringHere; } }
+        public bool BringHere
+        {
+            get { return Ini.Bool(cfg, "BringToMyScreen", false); }
+            set { Put("BringToMyScreen", value ? "true" : "false"); }
+        }
 
         public string Problem
         {
@@ -1445,6 +1678,8 @@ namespace UnlockedToolkit
 
         readonly AzVm owner;
         int max, normal;
+        // Levels for particular screens (screen name -> maximized, not maximized). Other screens use max / normal.
+        readonly Dictionary<string, int[]> onScreen = new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
         public string ProcName { get; private set; }
         public string Name { get; private set; }
 
@@ -1455,33 +1690,73 @@ namespace UnlockedToolkit
             Name = name;
             this.max = Clamp(max);
             this.normal = Clamp(normal);
-            MaxDown = new Cmd(delegate { Max = this.max - 1; });
-            MaxUp = new Cmd(delegate { Max = this.max + 1; });
-            NormalDown = new Cmd(delegate { Normal = this.normal - 1; });
-            NormalUp = new Cmd(delegate { Normal = this.normal + 1; });
+            MaxDown = new Cmd(delegate { Max = Max - 1; });
+            MaxUp = new Cmd(delegate { Max = Max + 1; });
+            NormalDown = new Cmd(delegate { Normal = Normal - 1; });
+            NormalUp = new Cmd(delegate { Normal = Normal + 1; });
             Remove = new Cmd(delegate { owner.RemoveApp(this); });
+            ResetScreen = new Cmd(delegate { if (onScreen.Remove(owner.Editing)) { RaiseAll(); owner.Changed(); } });
         }
 
         static int Clamp(int v) { return Math.Max(-Limit, Math.Min(Limit, v)); }
 
-        public int Max
+        public int BaseMax { get { return max; } }
+        public int BaseNormal { get { return normal; } }
+        public Dictionary<string, int[]> OnScreen { get { return onScreen; } }
+        public void SetOnScreen(string screen, int m, int n) { onScreen[screen] = new[] { Clamp(m), Clamp(n) }; }
+
+        // The levels being edited: the screen picked at the top of the page, or every screen.
+        int[] Own
         {
-            get { return max; }
-            set { int v = Clamp(value); if (v == max) return; max = v; RaiseAll(); owner.Changed(); }
+            get
+            {
+                int[] v;
+                return owner.Editing.Length > 0 && onScreen.TryGetValue(owner.Editing, out v) ? v : null;
+            }
         }
 
-        public int Normal
+        void Change(int which, int value)
         {
-            get { return normal; }
-            set { int v = Clamp(value); if (v == normal) return; normal = v; RaiseAll(); owner.Changed(); }
+            int v = Clamp(value);
+            if (owner.Editing.Length == 0)
+            {
+                if (which == 0) { if (v == max) return; max = v; }
+                else { if (v == normal) return; normal = v; }
+            }
+            else
+            {
+                int[] cur = Own ?? new[] { max, normal };
+                if (Own != null && cur[which] == v) return;
+                var next = new[] { cur[0], cur[1] };
+                next[which] = v;
+                onScreen[owner.Editing] = next;
+            }
+            RaiseAll();
+            owner.Changed();
         }
 
-        public string Meta { get { return ProcName + ".exe"; } }
+        public int Max { get { var o = Own; return o != null ? o[0] : max; } set { Change(0, value); } }
+        public int Normal { get { var o = Own; return o != null ? o[1] : normal; } set { Change(1, value); } }
+
+        public bool HasOwn { get { return Own != null; } }
+        public double LevelOpacity { get { return owner.Editing.Length > 0 && Own == null ? 0.55 : 1.0; } }
+
+        public string Meta
+        {
+            get
+            {
+                string m = ProcName + ".exe";
+                if (owner.Editing.Length > 0) return m + (Own != null ? " \u00B7 own levels on this screen" : " \u00B7 same as all screens");
+                if (onScreen.Count > 0) return m + " \u00B7 own levels on " + onScreen.Count + (onScreen.Count == 1 ? " screen" : " screens");
+                return m;
+            }
+        }
         public string Mono { get { return Name.Length > 0 ? Name.Substring(0, 1).ToUpperInvariant() : "?"; } }
-        public string MaxText { get { return Steps(max); } }
-        public string NormalText { get { return Steps(normal); } }
-        public string MaxAria { get { return Name + " when maximized: " + Spoken(max); } }
-        public string NormalAria { get { return Name + " when not maximized: " + Spoken(normal); } }
+        public string MaxText { get { return Steps(Max); } }
+        public string NormalText { get { return Steps(Normal); } }
+        public string MaxAria { get { return Name + " when maximized: " + Spoken(Max); } }
+        public string NormalAria { get { return Name + " when not maximized: " + Spoken(Normal); } }
+        public ICommand ResetScreen { get; private set; }
 
         public Brush Tile
         {
@@ -1515,7 +1790,9 @@ namespace UnlockedToolkit
         readonly Shell shell;
         readonly Debounce save;
         readonly List<string> other = new List<string>(); // comments and other settings, kept as they are
+        string editing = "";                               // screen whose levels are shown; "" = all screens
         public ObservableCollection<AzApp> Apps { get; private set; }
+        public ObservableCollection<ScreenChip> ScreenTabs { get; private set; }
         public ICommand AddApp { get; private set; }
 
         public AzVm(Shell shell)
@@ -1523,7 +1800,52 @@ namespace UnlockedToolkit
             this.shell = shell;
             save = new Debounce(250, Save);
             Apps = new ObservableCollection<AzApp>();
+            ScreenTabs = new ObservableCollection<ScreenChip>();
             AddApp = new Cmd(PickApp);
+        }
+
+        public string Editing { get { return editing; } }
+
+        void Edit(string screen)
+        {
+            if (screen == editing) return;
+            editing = screen;
+            foreach (var a in Apps) a.RaiseAll();
+            RaiseAll();
+        }
+
+        public void ScreensChanged() { RebuildTabs(); RaiseAll(); }
+
+        void RebuildTabs()
+        {
+            var list = shell.ScreenList;
+            var want = new List<ScreenChip>();
+            Action<ScreenChip> pick = delegate(ScreenChip c) { Edit(c.Key); };
+            want.Add(new ScreenChip("AzScreen", "", "All screens", "Unless set below", false, pick));
+            foreach (var sc in list) want.Add(new ScreenChip("AzScreen", sc.Name, sc.Name, ScreenChip.Describe(sc), false, pick));
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var sc in list) seen.Add(sc.Name);
+            foreach (var a in Apps)
+                foreach (var name in a.OnScreen.Keys)
+                    if (seen.Add(name)) want.Add(new ScreenChip("AzScreen", name, name, "Not connected", true, pick));
+            bool same = want.Count == ScreenTabs.Count;
+            for (int i = 0; same && i < want.Count; i++) same = want[i].Key == ScreenTabs[i].Key && want[i].Sub == ScreenTabs[i].Sub;
+            if (!same) { ScreenTabs.Clear(); foreach (var c in want) ScreenTabs.Add(c); }
+            bool found = false;
+            foreach (var c in ScreenTabs) if (c.Key.Equals(editing, StringComparison.OrdinalIgnoreCase)) found = true;
+            if (!found) Edit("");
+            foreach (var c in ScreenTabs) c.Mark(c.Key.Equals(editing, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public bool ShowScreenTabs { get { return ScreenTabs.Count > 2 || shell.ScreenList.Count > 1; } }
+
+        public string AppsHint
+        {
+            get
+            {
+                if (editing.Length > 0) return "Levels on " + editing + ". Apps you don't change here use their all-screens levels. Moving a window to another screen switches its zoom when you let go.";
+                return "Zoom goes in steps. One step is one press of the app's zoom-in key (Ctrl and +); below 100% it's zoom-out (Ctrl and -).";
+            }
         }
 
         Snap S { get { return shell.State; } }
@@ -1532,6 +1854,8 @@ namespace UnlockedToolkit
         {
             Apps.Clear();
             other.Clear();
+            var byProc = new Dictionary<string, AzApp>(StringComparer.OrdinalIgnoreCase);
+            var later = new List<string[]>(); // per-screen lines: proc, screen, max, normal
             string[] lines = new string[0];
             try { if (File.Exists(P.AzSettings)) lines = File.ReadAllLines(P.AzSettings); } catch { }
             foreach (var raw in lines)
@@ -1540,7 +1864,9 @@ namespace UnlockedToolkit
                 int eq = line.IndexOf('=');
                 if (eq > 4 && line.StartsWith("App.", StringComparison.OrdinalIgnoreCase))
                 {
-                    string proc = line.Substring(4, eq - 4).Trim();
+                    string proc = line.Substring(4, eq - 4).Trim(), screen = "";
+                    int at = proc.IndexOf('@');
+                    if (at >= 0) { screen = proc.Substring(at + 1).Trim(); proc = proc.Substring(0, at).Trim(); }
                     if (proc.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) proc = proc.Substring(0, proc.Length - 4);
                     string[] parts = line.Substring(eq + 1).Split(',');
                     int max, normal;
@@ -1548,12 +1874,25 @@ namespace UnlockedToolkit
                         && int.TryParse(parts[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out max)
                         && int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out normal))
                     {
-                        Apps.Add(new AzApp(this, proc, FriendlyName(proc), max, normal));
+                        if (screen.Length > 0) later.Add(new[] { proc, screen, parts[0].Trim(), parts[1].Trim() });
+                        else if (!byProc.ContainsKey(proc))
+                        {
+                            var app = new AzApp(this, proc, FriendlyName(proc), max, normal);
+                            byProc[proc] = app;
+                            Apps.Add(app);
+                        }
                         continue;
                     }
                 }
                 other.Add(raw);
             }
+            foreach (var l in later)
+            {
+                AzApp app;
+                if (!byProc.TryGetValue(l[0], out app)) { app = new AzApp(this, l[0], FriendlyName(l[0]), 0, 0); byProc[l[0]] = app; Apps.Add(app); }
+                app.SetOnScreen(l[1], int.Parse(l[2], CultureInfo.InvariantCulture), int.Parse(l[3], CultureInfo.InvariantCulture));
+            }
+            RebuildTabs();
             RaiseAll();
         }
 
@@ -1564,11 +1903,13 @@ namespace UnlockedToolkit
             Apps.Add(new AzApp(this, "claude", "Claude", 4, 1));
             Apps.Add(new AzApp(this, "ms-teams", "Microsoft Teams", 2, 0));
             Apps.Add(new AzApp(this, "notepad", "Notepad", 0, -1));
+            Apps[0].SetOnScreen("LG TV SSCR2", 7, 3);
+            RebuildTabs();
             RaiseAll();
         }
 
         public void Flush() { save.Flush(); }
-        public void Changed() { save.Kick(); RaiseAll(); }
+        public void Changed() { save.Kick(); RebuildTabs(); RaiseAll(); }
         public void RemoveApp(AzApp app) { Apps.Remove(app); Changed(); }
 
         void Save()
@@ -1579,7 +1920,11 @@ namespace UnlockedToolkit
             while (at < lines.Count && (lines[at].Trim().StartsWith("#") || lines[at].Trim().StartsWith(";"))) at++;
             var apps = new List<string>();
             foreach (var a in Apps)
-                apps.Add("App." + a.ProcName + "=" + a.Max.ToString(CultureInfo.InvariantCulture) + "," + a.Normal.ToString(CultureInfo.InvariantCulture));
+            {
+                apps.Add("App." + a.ProcName + "=" + a.BaseMax.ToString(CultureInfo.InvariantCulture) + "," + a.BaseNormal.ToString(CultureInfo.InvariantCulture));
+                foreach (var kv in a.OnScreen)
+                    apps.Add("App." + a.ProcName + "@" + kv.Key + "=" + kv.Value[0].ToString(CultureInfo.InvariantCulture) + "," + kv.Value[1].ToString(CultureInfo.InvariantCulture));
+            }
             lines.InsertRange(at, apps);
             for (int attempt = 0; attempt < 6; attempt++)
             {
@@ -1789,7 +2134,7 @@ namespace UnlockedToolkit
             var az = new ToolCard();
             az.Id = "autozoom"; az.NameText = "AutoZoom"; az.MonoText = "Z";
             az.TileBrush = Theme.Gradient(Theme.Parse("#D98E04", Colors.Orange), Theme.Parse("#B5452A", Colors.Red));
-            az.BlurbText = "Pick how big each app is when its window is maximized, and when it isn’t.";
+            az.BlurbText = "Pick how big each app is when its window is maximized, and when it isn\u2019t.";
             az.GetInstalled = delegate { return shell.State.AzInstalled; };
             az.GetOn = delegate { return shell.State.AzEnabled; };
             az.GetRunning = delegate { return shell.State.AzRunning; };
@@ -1895,7 +2240,7 @@ namespace UnlockedToolkit
             Tiles.Add(MakeTile("AutoZoom",
                 delegate { return S.AzInstalled; },
                 delegate { return S.AzEnabled; },
-                delegate { return S.AzRunning ? AzSummary() : "Starting…"; },
+                delegate { return S.AzRunning ? AzSummary() : "Starting\u2026"; },
                 shell.SetAz));
         }
 
@@ -1999,6 +2344,8 @@ namespace UnlockedToolkit
         public static DateTime PausedUntil;
 
         public Snap State = new Snap();
+        public List<ScreenInfo> ScreenList = new List<ScreenInfo>();
+        string screensKey;
         readonly MainVm vm;
         readonly FlyoutVm fvm;
         WF.NotifyIcon tray;
@@ -2024,6 +2371,7 @@ namespace UnlockedToolkit
         public void Start(bool showSettings)
         {
             Log.Write("started (version " + Program.Version + ")");
+            RefreshScreens();
             Refresh();
             vm.Lean.LoadSettings();
             vm.Lean.LoadLayout(null);
@@ -2101,9 +2449,32 @@ namespace UnlockedToolkit
 
         public void NoteOwnWrite(string path) { if (path == P.LeanSettings) leanStamp = Stamp(path); if (path == P.AzSettings) azStamp = Stamp(path); }
 
+        // The connected screens. Checked every second (cheap), so plugging in a screen or switching a TV on shows up.
+        public void RefreshScreens()
+        {
+            List<ScreenInfo> list;
+            if (Demo)
+            {
+                list = new List<ScreenInfo>();
+                var a = new ScreenInfo(); a.Name = "DELL U2723QE"; a.Primary = true; a.Right = 3840; a.Bottom = 2160; list.Add(a);
+                var b = new ScreenInfo(); b.Name = "LG TV SSCR2"; b.Left = 3840; b.Right = 7680; b.Bottom = 2160; list.Add(b);
+            }
+            else list = Screens.List();
+            var sb = new StringBuilder();
+            foreach (var x in list) sb.Append(x.Name).Append(x.Primary).Append(x.Width).Append('x').Append(x.Height).Append('|');
+            string key = sb.ToString();
+            if (key == screensKey) return;
+            screensKey = key;
+            ScreenList = list;
+            vm.Lean.ScreensChanged();
+            vm.Mtj.RaiseAll();
+            vm.Az.ScreensChanged();
+        }
+
         public void Refresh()
         {
             if (Demo) return;
+            RefreshScreens();
             var s = new Snap();
             s.LeanInstalled = Leanback.Installed;
             s.LeanRunning = s.LeanInstalled && Procs.Running("LeanbackMode");
@@ -2490,6 +2861,7 @@ namespace UnlockedToolkit
                 s.AmxInstalled = s.AmxRunning = s.AmxEnabled = true;
                 s.MtjInstalled = s.MtjRunning = s.MtjEnabled = s.GlowOn = true;
                 s.AzInstalled = s.AzRunning = s.AzEnabled = true;
+                shell.RefreshScreens();
                 shell.Vm.Az.Sample();
                 s.Status = Ini.Pairs("Mode", "TV", "Why", "controller on", "Controller", "8BitDo (2DC8:301A)", "LastController", "8BitDo (2DC8:301A)", "Mouse", "on", "Hotkey", "Ctrl+Alt+T");
                 shell.Vm.Lean.LoadSettings();
@@ -2504,6 +2876,9 @@ namespace UnlockedToolkit
                     shell.Vm.Page = page;
                     Save(main, 1100, Path.Combine(outDir, "settings-" + page + ".png"), report);
                 }
+                shell.Vm.Page = "az";
+                foreach (var tab in shell.Vm.Az.ScreenTabs) if (tab.Key == "LG TV SSCR2") tab.IsSelected = true;
+                Save(main, 1100, Path.Combine(outDir, "settings-az-screen.png"), report);
                 Theme.Mode = "Dark"; Theme.AccentKey = "#7C5CFF"; Theme.Apply();
                 shell.Vm.Page = "lean";
                 Save(main, 1100, Path.Combine(outDir, "settings-lean-dark.png"), report);

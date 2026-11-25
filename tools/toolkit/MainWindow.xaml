@@ -6,6 +6,37 @@
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Window.Resources>
     <BooleanToVisibilityConverter x:Key="Vis"/>
+    <!-- A screen you can pick: a little monitor, its name and size. Used by Leanback Mode and AutoZoom. -->
+    <DataTemplate x:Key="ScreenChipTemplate">
+      <RadioButton GroupName="{Binding Group}" IsChecked="{Binding IsSelected, Mode=TwoWay}" Cursor="Hand" Margin="0,0,8,8" FocusVisualStyle="{x:Null}" AutomationProperties.Name="{Binding Aria}">
+        <RadioButton.Template>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="Bg" CornerRadius="12" MinHeight="48" Padding="10,7,14,7" BorderThickness="1" BorderBrush="{DynamicResource Line}" Background="Transparent">
+              <StackPanel Orientation="Horizontal">
+                <Grid Width="30" Height="24" VerticalAlignment="Center" Opacity="{Binding Glyph}">
+                  <Border x:Name="Glass" Width="30" Height="19" VerticalAlignment="Top" CornerRadius="3.5" BorderThickness="1.6" BorderBrush="{DynamicResource Mut}" Background="Transparent"/>
+                  <Border Width="10" Height="2" VerticalAlignment="Bottom" CornerRadius="1" Background="{DynamicResource Mut}"/>
+                </Grid>
+                <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Label}" FontSize="13.5" Foreground="{DynamicResource Ink}"/>
+                  <TextBlock Text="{Binding Sub}" FontSize="11.5" Foreground="{DynamicResource Mut}"/>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource Soft}"/>
+                <Setter TargetName="Glass" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                <Setter TargetName="Glass" Property="Background" Value="{DynamicResource Soft}"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource Mut}"/></Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource Ink}"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </RadioButton.Template>
+      </RadioButton>
+    </DataTemplate>
   </Window.Resources>
 
   <Grid x:Name="Root" Background="{DynamicResource BgWin}">
@@ -165,6 +196,21 @@
                   <StackPanel Margin="0,0,16,0"><TextBlock Text="When to use Leanback mode" Style="{StaticResource CardTitle}"/><TextBlock Text="Automatic follows your controller." Style="{StaticResource Hint}"/></StackPanel>
                 </DockPanel>
               </Border>
+              <Border Style="{StaticResource Row}" Visibility="{Binding MultiScreen, Converter={StaticResource Vis}}">
+                <StackPanel>
+                  <TextBlock Text="Leanback screen" Style="{StaticResource Label}"/>
+                  <TextBlock Text="{Binding ScreenHint}" Style="{StaticResource Hint}" Margin="0,2,0,10"/>
+                  <ItemsControl ItemsSource="{Binding ScreenChips}" ItemTemplate="{StaticResource ScreenChipTemplate}" Focusable="False">
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource Row}" Visibility="{Binding MultiScreen, Converter={StaticResource Vis}}">
+                <DockPanel>
+                  <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding MovePointer, Mode=TwoWay}" AutomationProperties.Name="Bring the pointer to the Leanback screen"/>
+                  <StackPanel Margin="0,0,12,0"><TextBlock Text="Bring the pointer along" Style="{StaticResource Label}"/><TextBlock Text="When Leanback mode starts, the pointer jumps to the Leanback screen, ready for the controller." Style="{StaticResource Hint}"/></StackPanel>
+                </DockPanel>
+              </Border>
               <Border Style="{StaticResource Row}">
                 <DockPanel>
                   <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding StayWhenAsleep, Mode=TwoWay}" AutomationProperties.Name="Stay in Leanback mode when the controller falls asleep"/>
@@ -182,7 +228,7 @@
                 <DockPanel>
                   <TextBlock DockPanel.Dock="Right" Text="{Binding DeskScaleText}" Style="{StaticResource Value}"/>
                   <Slider DockPanel.Dock="Right" Style="{StaticResource Range}" Minimum="100" Maximum="250" TickFrequency="25" Value="{Binding DeskScale, Mode=TwoWay}" AutomationProperties.Name="Size of everything in desktop mode"/>
-                  <StackPanel Margin="0,0,16,0"><TextBlock Text="Size of everything in desktop mode" Style="{StaticResource Label}"/><TextBlock Text="Your normal Windows scaling." Style="{StaticResource Hint}"/></StackPanel>
+                  <StackPanel Margin="0,0,16,0"><TextBlock Text="Size of everything in desktop mode" Style="{StaticResource Label}"/><TextBlock Text="{Binding DeskHint}" Style="{StaticResource Hint}"/></StackPanel>
                 </DockPanel>
               </Border>
               <Border Style="{StaticResource Row}">
@@ -411,6 +457,15 @@
               </Border>
             </StackPanel>
           </Border>
+
+          <Border Style="{StaticResource Card}" Visibility="{Binding MultiScreen, Converter={StaticResource Vis}}">
+            <Border Style="{StaticResource RowFirst}">
+              <DockPanel>
+                <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding BringHere, Mode=TwoWay}" AutomationProperties.Name="Bring the tab to your screen"/>
+                <StackPanel Margin="0,0,12,0"><TextBlock Text="Bring the tab to your screen" Style="{StaticResource CardTitle}"/><TextBlock Text="If the browser is on another screen, move its window to the screen you clicked on (it stays maximized if it was). Off: jump to it where it is." Style="{StaticResource Hint}"/></StackPanel>
+              </DockPanel>
+            </Border>
+          </Border>
         </StackPanel>
         </Border>
 
@@ -427,9 +482,17 @@
                   <Button DockPanel.Dock="Right" Style="{StaticResource Primary}" Content="Add an app" Command="{Binding AddApp}" VerticalAlignment="Center"/>
                   <StackPanel Margin="0,0,16,0">
                     <TextBlock Text="Your apps" Style="{StaticResource CardTitle}"/>
-                    <TextBlock Text="Zoom goes in steps. One step is one press of the app's zoom-in key (Ctrl and +); below 100% it's zoom-out (Ctrl and -)." Style="{StaticResource Hint}" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding AppsHint}" Style="{StaticResource Hint}" TextWrapping="Wrap"/>
                   </StackPanel>
                 </DockPanel>
+              </Border>
+              <Border Style="{StaticResource Row}" Padding="18,13,18,5" Visibility="{Binding ShowScreenTabs, Converter={StaticResource Vis}}">
+                <StackPanel>
+                  <TextBlock Text="Levels for" Style="{StaticResource Hint}" Margin="0,0,0,8"/>
+                  <ItemsControl ItemsSource="{Binding ScreenTabs}" ItemTemplate="{StaticResource ScreenChipTemplate}" Focusable="False">
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                  </ItemsControl>
+                </StackPanel>
               </Border>
               <Border Style="{StaticResource Row}" Visibility="{Binding NoApps, Converter={StaticResource Vis}}">
                 <TextBlock Text="No apps yet. Open the app you want, then click Add an app." Style="{StaticResource Hint}" Margin="0"/>
@@ -440,7 +503,8 @@
                     <Border Style="{StaticResource Row}">
                       <DockPanel>
                         <Button DockPanel.Dock="Right" Style="{StaticResource Secondary}" Content="Remove" Command="{Binding Remove}" VerticalAlignment="Center" Margin="22,0,0,0" ToolTip="Stop zooming this app" AutomationProperties.Name="Remove"/>
-                        <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" VerticalAlignment="Center">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Secondary}" Content="Same as all" Command="{Binding ResetScreen}" VerticalAlignment="Center" Margin="22,0,0,0" ToolTip="Use this app's all-screens levels on this screen" Visibility="{Binding HasOwn, Converter={StaticResource Vis}}"/>
+                        <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" VerticalAlignment="Center" Opacity="{Binding LevelOpacity}">
                           <TextBlock Text="Not maximized" Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
                           <StackPanel Orientation="Horizontal" AutomationProperties.Name="{Binding NormalAria}">
                             <Button Style="{StaticResource Secondary}" Content="&#x2212;" Width="36" Padding="0" HorizontalContentAlignment="Center" Command="{Binding NormalDown}" AutomationProperties.Name="Smaller when not maximized"/>
@@ -448,7 +512,7 @@
                             <Button Style="{StaticResource Secondary}" Content="+" Width="36" Padding="0" HorizontalContentAlignment="Center" Command="{Binding NormalUp}" AutomationProperties.Name="Bigger when not maximized"/>
                           </StackPanel>
                         </StackPanel>
-                        <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" VerticalAlignment="Center">
+                        <StackPanel DockPanel.Dock="Right" Margin="18,0,0,0" VerticalAlignment="Center" Opacity="{Binding LevelOpacity}">
                           <TextBlock Text="Maximized" Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
                           <StackPanel Orientation="Horizontal" AutomationProperties.Name="{Binding MaxAria}">
                             <Button Style="{StaticResource Secondary}" Content="&#x2212;" Width="36" Padding="0" HorizontalContentAlignment="Center" Command="{Binding MaxDown}" AutomationProperties.Name="Smaller when maximized"/>
@@ -470,7 +534,7 @@
               </ItemsControl>
             </StackPanel>
           </Border>
-          <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="4,14,0,0" Text="Works with apps that zoom with Ctrl and +, such as Claude, Teams, Discord, Slack, VS Code, Notepad and browsers. Each window keeps its own zoom, so two windows of the same app don't affect each other. Zoomed an app by hand? Press Ctrl+0 in it, then maximize or restore it once."/>
+          <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="4,14,0,0" Text="Works with apps that zoom with Ctrl and +, such as Claude, Teams, Discord, Slack, VS Code, Notepad and browsers. Each window keeps its own zoom, so two windows of the same app don't affect each other, and a window moved to another screen takes that screen's levels. Zoomed an app by hand? Press Ctrl+0 in it, then maximize or restore it once."/>
         </StackPanel>
         </Border>
 

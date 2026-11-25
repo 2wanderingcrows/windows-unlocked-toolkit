@@ -1,4 +1,4 @@
-// Media Tab Jump  (version 7.2)
+// Media Tab Jump  (version 7.3)
 // ---------------------------------------------------------------------------
 // Click the "now playing" card in the Windows volume / Quick Settings flyout
 // and this jumps you to the browser tab that is playing it.
@@ -11,6 +11,9 @@
 //      app name ("Microsoft Edge") and the title of what's playing.
 //   3. It lists that browser's tabs the same way, picks the tab whose title
 //      matches, brings the window forward and selects the tab.
+//
+// Several screens: by default the browser window comes forward wherever it is. With
+// BringToMyScreen=true in settings.ini it moves to the screen you clicked the card on.
 //
 // A small log is kept at %LOCALAPPDATA%\MediaTabJump\log.txt for troubleshooting.
 //
@@ -293,7 +296,7 @@ namespace MediaTabJump
     public static class Program
     {
         private const string AppName = "MediaTabJump";
-        private const string Version = "7.1";
+        private const string Version = "7.3";
 
         // ---------------------------------------------------------------- Win32
 
@@ -1408,7 +1411,12 @@ namespace MediaTabJump
         private static string SwitchToTab(TabInfo tab)
         {
             Stopwatch timer = Stopwatch.StartNew();
+            POINT clickedAt;
+            GetCursorPos(out clickedAt);   // on the flyout, so on the screen you're using
             WaitForPanelToClose(400);
+            ReadGlowSettings();
+            string moved = bringToMyScreen ? ScreenMover.MoveTo(tab.Window, clickedAt.X, clickedAt.Y) : null;
+            if (moved != null) Log(moved);
             string raised = BringToFront(tab.Window);
             string windowNote = raised == null ? "Windows refused to bring the window forward" : "window " + raised;
             long raiseMs = timer.ElapsedMilliseconds;
@@ -1668,7 +1676,9 @@ namespace MediaTabJump
 
         // settings.ini next to the log (written by the Windows Unlocked Toolkit app, or by hand):
         //   GlowStyle=Shift|Accent|Sunset|Ocean|White   GlowColor=#3B6CF6   GlowBrightness=100   GlowSize=100
+        //   BringToMyScreen=true|false   move the browser window to the screen you clicked on (several screens)
         private static DateTime glowSettingsStamp = DateTime.MinValue;
+        private static volatile bool bringToMyScreen;
 
         private static void ReadGlowSettings()
         {
@@ -1681,6 +1691,7 @@ namespace MediaTabJump
                 string style = "Shift";
                 int colour = 0x3B6CF6;
                 double bright = 100, size = 100;
+                bool bring = false;
                 if (stamp != DateTime.MinValue)
                 {
                     foreach (string raw in File.ReadAllLines(path))
@@ -1698,9 +1709,11 @@ namespace MediaTabJump
                         }
                         else if (k == "glowbrightness" && double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) bright = d;
                         else if (k == "glowsize" && double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) size = d;
+                        else if (k == "bringtomyscreen") bring = v == "1" || v.Equals("true", StringComparison.OrdinalIgnoreCase) || v.Equals("on", StringComparison.OrdinalIgnoreCase) || v.Equals("yes", StringComparison.OrdinalIgnoreCase);
                     }
                 }
                 GlowLayer.Configure(style, colour, bright / 100.0, size / 100.0);
+                bringToMyScreen = bring;
                 Log("Glow look: " + style + ", brightness " + bright + "%, size " + size + "%");
             }
             catch (Exception ex) { Log("Couldn't read settings.ini: " + ex.Message); }
@@ -2574,6 +2587,85 @@ namespace MediaTabJump
             size.CX = width;
             size.CY = height;
             UpdateLayeredWindow(handle, screenDc, ref dst, ref size, memDc, ref src, 0, ref blend, ULW_ALPHA);
+        }
+    }
+
+    // ======================================================================
+    // Several screens: moves a window to the screen you're using, keeping its
+    // size and place relative to that screen, and keeping it maximized,
+    // minimized or normal as it was.
+    // ======================================================================
+    internal static class ScreenMover
+    {
+        [StructLayout(LayoutKind.Sequential)] private struct RECT { public int Left, Top, Right, Bottom; }
+        [StructLayout(LayoutKind.Sequential)] private struct PT { public int X, Y; }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WINDOWPLACEMENT { public int length; public int flags; public int showCmd; public PT ptMin; public PT ptMax; public RECT rcNormal; }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MONITORINFO { public int cbSize; public RECT rcMonitor; public RECT rcWork; public uint dwFlags; }
+
+        [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+        [DllImport("user32.dll")] private static extern IntPtr MonitorFromPoint(PT pt, uint flags);
+        [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
+        [DllImport("user32.dll")] private static extern bool GetWindowPlacement(IntPtr hwnd, ref WINDOWPLACEMENT wp);
+        [DllImport("user32.dll")] private static extern bool SetWindowPlacement(IntPtr hwnd, ref WINDOWPLACEMENT wp);
+        [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hwnd, int cmd);
+
+        private const uint MONITOR_DEFAULTTONEAREST = 2, MONITOR_DEFAULTTOPRIMARY = 1;
+        private const int SW_SHOWMINIMIZED = 2, SW_SHOWMAXIMIZED = 3, SW_MAXIMIZE = 3, SW_SHOWNOACTIVATE = 4, SW_SHOWMINNOACTIVE = 7;
+
+        // Returns a line for the log, or null if nothing needed doing.
+        public static string MoveTo(IntPtr window, int x, int y)
+        {
+            try
+            {
+                PT p = new PT(); p.X = x; p.Y = y;
+                IntPtr to = MonitorFromPoint(p, MONITOR_DEFAULTTONEAREST);
+                IntPtr from = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+                if (to == IntPtr.Zero || from == IntPtr.Zero || to == from) return null;
+                MONITORINFO a = Info(from), b = Info(to), main = Info(MonitorFromPoint(new PT(), MONITOR_DEFAULTTOPRIMARY));
+
+                WINDOWPLACEMENT wp = new WINDOWPLACEMENT();
+                wp.length = Marshal.SizeOf(typeof(WINDOWPLACEMENT));
+                if (!GetWindowPlacement(window, ref wp)) return "Couldn't read where the browser window is";
+
+                // rcNormal is in "workspace" coordinates: screen coordinates shifted by the main display's taskbar.
+                int ox = main.rcWork.Left - main.rcMonitor.Left, oy = main.rcWork.Top - main.rcMonitor.Top;
+                RECT r = wp.rcNormal;
+                r.Left += ox; r.Right += ox; r.Top += oy; r.Bottom += oy;
+
+                // Same place relative to the work area, shrunk if the new screen is smaller.
+                int w = Math.Min(r.Right - r.Left, b.rcWork.Right - b.rcWork.Left);
+                int h = Math.Min(r.Bottom - r.Top, b.rcWork.Bottom - b.rcWork.Top);
+                double fx = Fraction(r.Left - a.rcWork.Left, (a.rcWork.Right - a.rcWork.Left) - (r.Right - r.Left));
+                double fy = Fraction(r.Top - a.rcWork.Top, (a.rcWork.Bottom - a.rcWork.Top) - (r.Bottom - r.Top));
+                int left = b.rcWork.Left + (int)Math.Round(fx * Math.Max(0, (b.rcWork.Right - b.rcWork.Left) - w));
+                int top = b.rcWork.Top + (int)Math.Round(fy * Math.Max(0, (b.rcWork.Bottom - b.rcWork.Top) - h));
+                wp.rcNormal.Left = left - ox; wp.rcNormal.Top = top - oy;
+                wp.rcNormal.Right = left + w - ox; wp.rcNormal.Bottom = top + h - oy;
+
+                bool maximized = wp.showCmd == SW_SHOWMAXIMIZED, minimized = wp.showCmd == SW_SHOWMINIMIZED;
+                wp.showCmd = minimized ? SW_SHOWMINNOACTIVE : SW_SHOWNOACTIVATE;
+                wp.flags &= 2;   // keep "restore to maximized" for a minimized window
+                if (!SetWindowPlacement(window, ref wp)) return "Couldn't move the browser window to your screen";
+                if (maximized) ShowWindow(window, SW_MAXIMIZE);
+                return "Moved the browser window to the screen you clicked on" + (maximized ? " (kept maximized)" : "");
+            }
+            catch (Exception ex) { return "Couldn't move the browser window: " + ex.Message; }
+        }
+
+        private static MONITORINFO Info(IntPtr monitor)
+        {
+            MONITORINFO mi = new MONITORINFO();
+            mi.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
+            GetMonitorInfo(monitor, ref mi);
+            return mi;
+        }
+
+        private static double Fraction(int offset, int room)
+        {
+            if (room <= 0) return 0;
+            return Math.Max(0, Math.Min(1, offset / (double)room));
         }
     }
 }

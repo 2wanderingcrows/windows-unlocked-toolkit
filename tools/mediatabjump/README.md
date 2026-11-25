@@ -45,6 +45,13 @@ couple of seconds:
     GlowColor=#3B6CF6       the colour used by GlowStyle=Accent
     GlowBrightness=100      10 to 150 (percent)
     GlowSize=100            50 to 200 (percent)
+    BringToMyScreen=false   several screens: true moves the browser window to the
+                            screen you clicked on (it stays maximized if it was)
+
+With more than one screen, the browser window normally comes forward wherever
+it is. Turn on "Bring the tab to your screen" in the toolkit app (or set
+BringToMyScreen=true) and it moves to the screen you clicked the card on,
+keeping its size and maximized state.
 
 
 REMOVE

@@ -74,6 +74,18 @@ turn this off, set `StayInLeanbackWhenAsleep=false` (or use the switch in the
 toolkit app). For controllers that aren't Xbox-style, "touched" means any
 mouse or keyboard input, including the controller moving the pointer.
 
+### More than one screen
+
+Got a TV and a monitor on the same PC? Pick the **Leanback screen** (in the
+toolkit app's Leanback Mode page, or the tray menu's **Leanback screen**). Only
+that screen gets bigger; your other screens stay exactly as they are. When
+Leanback mode starts, the pointer jumps onto that screen so the controller is
+ready to go (turn that off with **Bring the pointer along**).
+
+If the Leanback screen isn't connected (most TVs disappear from Windows when
+they're switched off), Leanback Mode leaves your other screens alone. Switch the
+TV on and it gets the Leanback size within a couple of seconds.
+
 ### Controller buttons (as a mouse)
 
 | Button | Does |
@@ -100,7 +112,9 @@ B = Circle, X = Square, Y = Triangle.
 Right-click the tray icon and choose **Edit settings**. Changes apply as soon
 as you save. The file explains each option. The main ones:
 
-- `TvScale` / `NormalScale`: display scaling in Leanback and desktop mode (for example 150 and 100).
+- `Screen`: which screen gets bigger. `Main` (default) or a screen's name as Windows Settings > Display shows it, for example `Screen=LG TV SSCR2`. The log lists the connected screens.
+- `MovePointerToScreen`: move the pointer onto that screen when Leanback mode starts.
+- `TvScale` / `NormalScale`: that screen's display scaling in Leanback and desktop mode (for example 150 and 100).
 - `TvPointerSize` / `NormalPointerSize`: pointer size in each mode.
 - `Hotkey`: the switch shortcut, for example `Ctrl+Alt+T` or `Win+Alt+M`.
 - `PauseMouseInGames`, `GameFolders`, `NotGames`: when the controller mouse steps aside for games.
@@ -123,8 +137,8 @@ AntiMicroX itself stays installed. To remove it too, run
 
 - It checks every quarter second whether a game controller is connected. It
   doesn't read your keyboard or what you type.
-- It changes Windows display scaling on your main screen and the pointer size,
-  the same settings as in Windows Settings.
+- It changes Windows display scaling on one screen (your main one unless you
+  pick another) and the pointer size, the same settings as in Windows Settings.
 - To tell when you're in a game, it looks at which app is in front and where
   that app is installed.
 - Leanback Mode never connects to the internet. The installer uses `winget`
