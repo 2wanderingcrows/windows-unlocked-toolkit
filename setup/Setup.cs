@@ -44,6 +44,14 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using SD = System.Drawing;
 
+[assembly: AssemblyTitle("Windows Unlocked Toolkit Setup")]
+[assembly: AssemblyDescription("Installs, updates and removes the Windows Unlocked Toolkit tools")]
+[assembly: AssemblyCompany("Windows Unlocked Toolkit (open source)")]
+[assembly: AssemblyProduct("Windows Unlocked Toolkit")]
+[assembly: AssemblyCopyright("MIT License. Source: github.com/2wanderingcrows/windows-unlocked-toolkit")]
+[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.0.0.0")]
+
 namespace UnlockedToolkitSetup
 {
     static class Program
