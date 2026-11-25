@@ -315,6 +315,18 @@
                     <StackPanel Margin="0,0,12,0"><TextBlock Text="Step aside for games" Style="{StaticResource Label}"/><TextBlock Text="Pauses the mouse while a game is in front." Style="{StaticResource Hint}"/></StackPanel>
                   </DockPanel>
                 </Border>
+                <Border Style="{StaticResource Row}">
+                  <StackPanel>
+                    <DockPanel>
+                      <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding StepAsideApps, Mode=TwoWay}" AutomationProperties.Name="Step aside for controller apps"/>
+                      <StackPanel Margin="0,0,12,0"><TextBlock Text="Step aside for controller apps" Style="{StaticResource Label}"/><TextBlock Text="Apps like Playnite get the controller. Press Home to take it back." Style="{StaticResource Hint}"/></StackPanel>
+                    </DockPanel>
+                    <Border Margin="0,8,0,0" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Line}" Background="{DynamicResource BgCard}" Padding="8,5">
+                      <TextBox Text="{Binding ControllerApps, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource Ink}" FontSize="12.5" TextWrapping="Wrap" AutomationProperties.Name="Controller apps, separated by semicolons"/>
+                    </Border>
+                    <TextBlock Text="Program names or window titles, separated by ;" Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                  </StackPanel>
+                </Border>
               </StackPanel>
             </Border>
 

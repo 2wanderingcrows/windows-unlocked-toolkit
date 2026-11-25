@@ -239,6 +239,9 @@ namespace LeanbackMode
         public double ResumeAfterGameSeconds = 2;
         public string GameFolders = @"C:\Games";
         public string NotGames = "";
+        public bool StepAsideForApps = true;     // let controller-friendly launchers (Playnite, Kodi, Big Picture) have the controller
+        public string ControllerApps = DefaultControllerApps;
+        public const string DefaultControllerApps = "Playnite.FullscreenApp.exe;kodi.exe;Steam Big Picture Mode";
         public string AntiMicroXPath = @"C:\Program Files\AntiMicroX\bin\antimicrox.exe";
         public bool ShowTrayIcon = true;        // the Windows Unlocked Toolkit app turns this off and shows its own icon
         public bool StayInLeanbackWhenAsleep = true; // controller went off by itself after sitting idle -> keep Leanback mode
@@ -302,6 +305,8 @@ namespace LeanbackMode
                     case "resumeaftergameseconds": if (double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) s.ResumeAfterGameSeconds = Math.Max(0, d); break;
                     case "gamefolders": s.GameFolders = v; break;
                     case "notgames": s.NotGames = v; break;
+                    case "stepasideforapps": s.StepAsideForApps = !(v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)); break;
+                    case "controllerapps": s.ControllerApps = v; break;
                     case "showtrayicon": s.ShowTrayIcon = !(v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)); break;
                     case "stayinleanbackwhenasleep": s.StayInLeanbackWhenAsleep = !(v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)); break;
                     case "asleepafteridleminutes": if (double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out d)) s.AsleepAfterIdleMinutes = Math.Max(0.5, d); break;
@@ -403,6 +408,11 @@ namespace LeanbackMode
             sb.AppendLine("ResumeAfterGameSeconds=" + ResumeAfterGameSeconds.ToString(CultureInfo.InvariantCulture));
             sb.AppendLine("GameFolders=" + GameFolders);
             sb.AppendLine("NotGames=" + NotGames);
+            sb.AppendLine("#");
+            sb.AppendLine("# Also step aside while an app with its own controller navigation is in front. ControllerApps lists exe names");
+            sb.AppendLine("# (ending in .exe) or words from the window title, separated by ;. Press the Home button to take the controller back.");
+            sb.AppendLine("StepAsideForApps=" + (StepAsideForApps ? "true" : "false"));
+            sb.AppendLine("ControllerApps=" + ControllerApps);
             sb.AppendLine("#");
             sb.AppendLine("# Show Leanback Mode's own tray icon. The Windows Unlocked Toolkit app sets this to false while it runs.");
             sb.AppendLine("ShowTrayIcon=" + (ShowTrayIcon ? "true" : "false"));
@@ -1355,6 +1365,7 @@ namespace LeanbackMode
     {
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int max);
         [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool QueryFullProcessImageName(IntPtr h, int flags, StringBuilder name, ref int size);
         [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
@@ -1449,6 +1460,37 @@ namespace LeanbackMode
                 }
             }
             return cachedResult ? Path.GetFileName(cachedPath) : null;
+        }
+
+        // Returns the matching ControllerApps entry if the window in front is one of them, otherwise null.
+        // Entries ending in .exe match the program's file name; anything else matches words in the window title.
+        public string ControllerAppInFront(string list, out uint pid)
+        {
+            IntPtr hwnd = GetForegroundWindow();
+            GetWindowThreadProcessId(hwnd, out pid);
+            if (pid == 0 || pid == (uint)Process.GetCurrentProcess().Id || string.IsNullOrEmpty(list)) return null;
+            string exe = null, title = null;
+            foreach (var raw in list.Split(';'))
+            {
+                string e = raw.Trim();
+                if (e.Length == 0) continue;
+                if (e.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (exe == null)
+                    {
+                        string full = ExePath(pid);
+                        if (full == null) try { full = Process.GetProcessById((int)pid).ProcessName + ".exe"; } catch { full = ""; }
+                        exe = Path.GetFileName(full);
+                    }
+                    if (exe.Equals(Path.GetFileName(e), StringComparison.OrdinalIgnoreCase)) return e;
+                }
+                else
+                {
+                    if (title == null) { var sb = new StringBuilder(512); GetWindowText(hwnd, sb, sb.Capacity); title = sb.ToString(); }
+                    if (title.IndexOf(e, StringComparison.OrdinalIgnoreCase) >= 0) return e;
+                }
+            }
+            return null;
         }
 
         static string ExePath(uint pid)
@@ -1593,6 +1635,40 @@ namespace LeanbackMode
     // AntiMicroX switches its layout to set 2 while the button is held (its other buttons can do other things
     // there, set from the toolkit app); set 2 leaves the right stick alone so this can use it.
     // Only Xbox-style (XInput) controllers report the stick here, so the layer needs one of those.
+    // Watches the Home / Xbox button quickly (a tap is shorter than the main 250 ms tick) while a launcher has the controller.
+    static class HomeButton
+    {
+        public static volatile bool Watching;
+        static int presses;
+        public static int Presses { get { return presses; } }
+        static Thread thread;
+
+        public static void Start()
+        {
+            if (thread != null) return;
+            thread = new Thread(Run) { IsBackground = true, Name = "home button" };
+            thread.Start();
+        }
+
+        static void Run()
+        {
+            bool was = false;
+            while (true)
+            {
+                if (!Watching) { was = false; Thread.Sleep(200); continue; }
+                bool down = false;
+                for (uint i = 0; i < 4 && !down; i++)
+                {
+                    Controller.XINPUT_STATE s;
+                    try { if (Controller.ReadXInput(i, out s) == 0 && (s.Buttons & Controller.GUIDE) != 0) down = true; } catch { }
+                }
+                if (down && !was) Interlocked.Increment(ref presses);
+                was = down;
+                Thread.Sleep(30);
+            }
+        }
+    }
+
     class Layer
     {
         public volatile bool Active;           // AntiMicroX running with a layout that has a layer button, no game in front
@@ -1943,6 +2019,7 @@ namespace LeanbackMode
             poll.Start();
             UpdateLayer();
             layer.Start();
+            HomeButton.Start();
 
             // A screen was plugged in, unplugged, switched on or off (a TV usually disappears when it's off):
             // if that changes which screen Leanback mode is for, apply the current mode to it.
@@ -2087,20 +2164,46 @@ namespace LeanbackMode
             UpdateUi();
         }
 
-        // Pause AntiMicroX while a game is in front; bring it back shortly after you leave the game.
+        // Pause AntiMicroX while a game (or a launcher with its own controller navigation) is in front;
+        // bring it back shortly after you leave it. In a launcher, the Home button takes the controller back and gives it again.
+        uint homeOverridePid;   // launcher where you pressed Home to keep the controller mouse
+        int homeSeen;
+
         void GameTick()
         {
-            if (!settings.PauseMouseInGames)
+            bool gamesOn = settings.PauseMouseInGames, appsOn = settings.StepAsideForApps;
+            if (!gamesOn && !appsOn)
             {
-                if (mousePausedByUs) ResumeMouse("pausing in games turned off");
+                HomeButton.Watching = false; homeOverridePid = 0;
+                if (mousePausedByUs) ResumeMouse("stepping aside turned off");
                 return;
             }
-            string game = null;
-            try { game = games.GameInFront(); } catch { }
+            string game = null, app = null;
+            uint pid = 0;
+            if (gamesOn) try { game = games.GameInFront(); } catch { }
+            if (game == null && appsOn) try { app = games.ControllerAppInFront(settings.ControllerApps, out pid); } catch { }
+
+            if (homeOverridePid != 0 && pid != homeOverridePid) homeOverridePid = 0; // you left that launcher
+            HomeButton.Watching = app != null;
+            int presses = HomeButton.Presses;
+            if (presses != homeSeen)
+            {
+                homeSeen = presses;
+                if (app != null)
+                {
+                    homeOverridePid = homeOverridePid == pid ? 0 : pid;
+                    gameRawSince = DateTime.MinValue; // act on it right away
+                    Log.Write(homeOverridePid != 0 ? "Home pressed: controller mouse back in " + app : "Home pressed: " + app + " gets the controller again");
+                }
+            }
+            if (app != null && pid == homeOverridePid) app = null;
+            if (game == null) game = app;
+
             bool inGame = game != null;
-            if (inGame != gameRaw) { gameRaw = inGame; gameRawSince = DateTime.Now; }
+            if (inGame != gameRaw) { gameRaw = inGame; if (gameRawSince != DateTime.MinValue) gameRawSince = DateTime.Now; }
             double needed = inGame ? 0.5 : settings.ResumeAfterGameSeconds;
-            if ((DateTime.Now - gameRawSince).TotalSeconds < needed) return;
+            if (gameRawSince != DateTime.MinValue && (DateTime.Now - gameRawSince).TotalSeconds < needed) return;
+            if (gameRawSince == DateTime.MinValue) gameRawSince = DateTime.Now;
 
             if (inGame && !mousePausedByUs)
             {

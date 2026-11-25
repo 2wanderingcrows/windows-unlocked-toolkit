@@ -59,6 +59,7 @@ it stays off.
 | Leave the controller until it falls asleep | Stays in Leanback mode |
 | Press **Ctrl+Alt+T** | Switch between Leanback and desktop mode any time. Lasts until the controller next turns on or off. |
 | Open a game | The controller mouse pauses so the game gets the controller, and comes back when you leave the game. |
+| Open Playnite fullscreen, Kodi or Steam Big Picture | Same: these apps have their own controller controls, so the controller mouse steps aside. Press **Home** to take the controller back, and press it again to hand it back to the app. Edit the list in the tray app (Leanback page, "Step aside for controller apps"). |
 
 Left-click the TV icon in the tray for the menu: switch modes, choose
 Automatic / Always Leanback / Always desktop, pause the controller mouse, or edit
@@ -162,6 +163,7 @@ as you save. The file explains each option. The main ones:
 - `TvPointerSize` / `NormalPointerSize`: pointer size in each mode.
 - `Hotkey`: the switch shortcut, for example `Ctrl+Alt+T` or `Win+Alt+M`.
 - `PauseMouseInGames`, `GameFolders`, `NotGames`: when the controller mouse steps aside for games.
+- `StepAsideForApps`, `ControllerApps`: apps with their own controller controls (exe names, or words from the window title), separated by `;`.
 - `StayInLeanbackWhenAsleep`, `AsleepAfterIdleMinutes`: stay in Leanback mode when the controller falls asleep, and how long it must sit untouched to count as asleep (default 5 minutes).
 - `DetectControllers`: `All` (default) or `XInput` for Xbox-style only.
 - `IgnoreControllers`: devices that should never count as a controller.
