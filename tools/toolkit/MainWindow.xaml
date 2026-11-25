@@ -282,12 +282,19 @@
                     <TextBlock Text="Pointer speed" Style="{StaticResource Label}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
-                <Border Padding="18,8">
-                  <DockPanel>
-                    <TextBlock DockPanel.Dock="Right" Text="{Binding FastText}" Style="{StaticResource Value}" Width="44"/>
-                    <Slider DockPanel.Dock="Right" Style="{StaticResource Range}" Width="140" Minimum="1.5" Maximum="4" TickFrequency="0.1" Value="{Binding Fast, Mode=TwoWay}" AutomationProperties.Name="Fast pointer speed"/>
-                    <TextBlock Text="Fast pointer (hold Y)" Style="{StaticResource Label}" VerticalAlignment="Center"/>
-                  </DockPanel>
+                <!-- Fast pointer gets a little spotlight: it's the trick that makes big screens easy. -->
+                <Border Margin="10,6" Padding="8,10" CornerRadius="10" Background="{DynamicResource Soft}">
+                  <StackPanel>
+                    <DockPanel>
+                      <TextBlock DockPanel.Dock="Right" Text="{Binding FastText}" Style="{StaticResource Value}" Width="44"/>
+                      <Slider DockPanel.Dock="Right" Style="{StaticResource Range}" Width="140" Minimum="1.5" Maximum="4" TickFrequency="0.1" Value="{Binding Fast, Mode=TwoWay}" AutomationProperties.Name="Fast pointer speed, while holding Y"/>
+                      <Border DockPanel.Dock="Left" Width="24" Height="24" CornerRadius="12" Background="{DynamicResource Accent}" VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="Y" FontSize="12.5" FontWeight="Bold" Foreground="{DynamicResource AccentInk}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                      </Border>
+                      <TextBlock Text="Fast pointer" Style="{StaticResource Label}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <TextBlock Text="Hold Y to zip across a TV or ultrawide in a blink. Let go for precise aiming." Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="34,4,0,0"/>
+                  </StackPanel>
                 </Border>
                 <Border Padding="18,8,18,12">
                   <DockPanel>
@@ -313,30 +320,75 @@
 
             <Border Grid.Column="2" Style="{StaticResource Card}" VerticalAlignment="Top">
               <StackPanel>
+                <StackPanel.Resources>
+                  <DataTemplate x:Key="MappingTemplate">
+                    <DockPanel Margin="4">
+                      <Border DockPanel.Dock="Left" MinWidth="32" Height="30" CornerRadius="15" Background="{DynamicResource Soft}" Padding="6,0" Margin="0,0,8,0">
+                        <TextBlock Text="{Binding Button}" FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                      </Border>
+                      <Button Style="{StaticResource Secondary}" Command="{Binding Cycle}" IsEnabled="{Binding Editable}" HorizontalContentAlignment="Stretch" Padding="10,0" AutomationProperties.Name="{Binding Aria}">
+                        <DockPanel>
+                          <Path DockPanel.Dock="Right" Data="M 0,0 L 4,4 L 8,0" Stroke="{DynamicResource Mut}" StrokeThickness="1.6" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                          <TextBlock Text="{Binding Action}" FontSize="13" TextTrimming="CharacterEllipsis" ToolTip="{Binding Action}"/>
+                        </DockPanel>
+                      </Button>
+                    </DockPanel>
+                  </DataTemplate>
+                </StackPanel.Resources>
                 <Border Style="{StaticResource RowFirst}" Padding="18,16,18,8">
-                  <StackPanel><TextBlock Text="Buttons" Style="{StaticResource CardTitle}"/><TextBlock Text="Click an action to change it." Style="{StaticResource Hint}"/></StackPanel>
+                  <DockPanel>
+                    <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" VerticalAlignment="Center" Visibility="{Binding LayerOn, Converter={StaticResource Vis}}">
+                      <StackPanel Orientation="Horizontal">
+                        <RadioButton Style="{StaticResource Seg}" GroupName="LbLayerView" Content="Normal" IsChecked="{Binding ShowNormal, Mode=TwoWay}"/>
+                        <RadioButton Style="{StaticResource Seg}" GroupName="LbLayerView" Content="{Binding LayerTabText}" IsChecked="{Binding ShowLayer, Mode=TwoWay}"/>
+                      </StackPanel>
+                    </Border>
+                    <StackPanel Margin="0,0,12,0"><TextBlock Text="Buttons" Style="{StaticResource CardTitle}"/><TextBlock Text="{Binding ButtonsHint}" Style="{StaticResource Hint}" TextWrapping="Wrap"/></StackPanel>
+                  </DockPanel>
                 </Border>
-                <ItemsControl ItemsSource="{Binding Mappings}" Margin="14,0,14,12" Focusable="False">
+                <ItemsControl ItemsSource="{Binding Mappings}" ItemTemplate="{StaticResource MappingTemplate}" Margin="14,0,14,12" Focusable="False" Visibility="{Binding ShowNormal, Converter={StaticResource Vis}}">
                   <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                      <DockPanel Margin="4">
-                        <Border DockPanel.Dock="Left" MinWidth="32" Height="30" CornerRadius="15" Background="{DynamicResource Soft}" Padding="6,0" Margin="0,0,8,0">
-                          <TextBlock Text="{Binding Button}" FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <Button Style="{StaticResource Secondary}" Command="{Binding Cycle}" HorizontalContentAlignment="Stretch" Padding="10,0" AutomationProperties.Name="{Binding Aria}">
-                          <DockPanel>
-                            <Path DockPanel.Dock="Right" Data="M 0,0 L 4,4 L 8,0" Stroke="{DynamicResource Mut}" StrokeThickness="1.6" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                            <TextBlock Text="{Binding Action}" FontSize="13" TextTrimming="CharacterEllipsis"/>
-                          </DockPanel>
-                        </Button>
-                      </DockPanel>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <ItemsControl ItemsSource="{Binding LayerMappings}" ItemTemplate="{StaticResource MappingTemplate}" Margin="14,0,14,12" Focusable="False" Visibility="{Binding ShowLayer, Converter={StaticResource Vis}}">
+                  <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                 </ItemsControl>
               </StackPanel>
             </Border>
           </Grid>
+
+          <Border Style="{StaticResource Card}">
+            <StackPanel>
+              <Border Style="{StaticResource RowFirst}">
+                <DockPanel>
+                  <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding LayerOn, Mode=TwoWay}" AutomationProperties.Name="Hold a button for volume and window switching"/>
+                  <StackPanel Margin="0,0,12,0"><TextBlock Text="Volume and window switching" Style="{StaticResource CardTitle}"/><TextBlock Text="{Binding LayerHint}" Style="{StaticResource Hint}" TextWrapping="Wrap"/></StackPanel>
+                </DockPanel>
+              </Border>
+              <Border Style="{StaticResource Row}" Visibility="{Binding LayerOn, Converter={StaticResource Vis}}">
+                <DockPanel>
+                  <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}">
+                    <StackPanel Orientation="Horizontal">
+                      <RadioButton Style="{StaticResource Seg}" GroupName="LbLayerBtn" Content="LT" IsChecked="{Binding LayerLT, Mode=TwoWay}"/>
+                      <RadioButton Style="{StaticResource Seg}" GroupName="LbLayerBtn" Content="RT" IsChecked="{Binding LayerRT, Mode=TwoWay}"/>
+                      <RadioButton Style="{StaticResource Seg}" GroupName="LbLayerBtn" Content="LB" IsChecked="{Binding LayerLB, Mode=TwoWay}"/>
+                      <RadioButton Style="{StaticResource Seg}" GroupName="LbLayerBtn" Content="RB" IsChecked="{Binding LayerRB, Mode=TwoWay}"/>
+                    </StackPanel>
+                  </Border>
+                  <StackPanel Margin="0,0,16,0"><TextBlock Text="Button to hold" Style="{StaticResource Label}"/><TextBlock Text="Its usual job moves to a quick tap. Set what other buttons do while it's held under Buttons." Style="{StaticResource Hint}" TextWrapping="Wrap"/></StackPanel>
+                </DockPanel>
+              </Border>
+              <Border Style="{StaticResource Row}" Visibility="{Binding LayerOn, Converter={StaticResource Vis}}">
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Right" Text="{Binding VolumeSpeedText}" Style="{StaticResource Value}"/>
+                  <Slider DockPanel.Dock="Right" Style="{StaticResource Range}" Minimum="20" Maximum="150" TickFrequency="10" Value="{Binding VolumeSpeed, Mode=TwoWay}" AutomationProperties.Name="Volume speed at full tilt"/>
+                  <StackPanel Margin="0,0,16,0"><TextBlock Text="Volume speed" Style="{StaticResource Label}"/><TextBlock Text="How fast the volume moves with the stick tilted all the way. Small tilts are gentle." Style="{StaticResource Hint}" TextWrapping="Wrap"/></StackPanel>
+                </DockPanel>
+              </Border>
+              <Border Style="{StaticResource Row}" Visibility="{Binding LayerWarn, Converter={StaticResource Vis}}">
+                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Text="Heads up: volume and window switching need an Xbox-style controller (most 8BitDo and 2.4 GHz pads have an X-input mode). With other controllers, turn this off so the button works normally again."/>
+              </Border>
+            </StackPanel>
+          </Border>
 
           <Border Style="{StaticResource Card}">
             <StackPanel>
