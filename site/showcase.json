@@ -2,7 +2,7 @@
   "_about": "Website copy, keyed by tool id. Keep it short: tagline (a few words), problem (one or two sentences, shown when a tool is opened), bullets (about 10 words each; **bold** works). Images live in site/assets/. Set mockup to false once the image is a real screenshot.",
   "tools": {
     "leanback": {
-      "tagline": "Your PC, now a couch console.",
+      "tagline": "Use your PC from the couch with a controller.",
       "problem": "Pick up a controller and Windows rearranges itself for the couch. Put it down and your desktop is back.",
       "bullets": [
         "Turns on with your controller, off when you switch it off",
@@ -22,7 +22,7 @@
       "accent": "#5b5bff"
     },
     "mediatabjump": {
-      "tagline": "Who's making that noise? Found it.",
+      "tagline": "Jump to the tab that's playing.",
       "problem": "Something's playing in one of thirty tabs. Click the player in the volume flyout and land right on it.",
       "bullets": [
         "Jumps to the exact tab, even in another window or screen",
@@ -37,7 +37,7 @@
       "accent": "#f2552c"
     },
     "autozoom": {
-      "tagline": "Every app at a comfortable size.",
+      "tagline": "A zoom level per app, for big and small windows.",
       "problem": "Set how zoomed in each app is when maximized and when not. AutoZoom switches as you resize.",
       "bullets": [
         "Any app that zooms with Ctrl and +: Claude, Teams, Discord, VS Code, browsers",
@@ -52,7 +52,7 @@
       "accent": "#d98e04"
     },
     "toolkit": {
-      "tagline": "Every tool, one tidy tray icon.",
+      "tagline": "Every tool behind one tray icon.",
       "problem": "Every tool behind one tray icon, with quick switches and a settings page for each.",
       "bullets": [
         "One click between Leanback and desktop mode",
@@ -70,11 +70,11 @@
   "upcoming": [
     {
       "name": "Window Tab Organizer",
-      "note": "Tame way too many windows"
+      "note": "Organize lots of open windows"
     },
     {
       "name": "Startup Minimizer",
-      "note": "A calm desktop at sign-in"
+      "note": "Start Windows with apps minimized"
     }
   ]
 }

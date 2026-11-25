@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Windows Unlocked Toolkit: the little Windows fixes you've been missing</title>
+<title>Windows Unlocked Toolkit</title>
 <meta name="description" content="Free, open-source tools that fix the small annoyances in Windows. Couch mode for your controller, one-click jump to the tab that's playing, and more. Install them all from one file.">
 <meta property="og:title" content="Windows Unlocked Toolkit">
 <meta property="og:description" content="Free, open-source tools that fix the small annoyances in Windows. Install them all from one file.">
@@ -203,7 +203,7 @@
   <div class="wrap">
     <div class="kicker"><b>Free</b> · Open source · Made for Windows</div>
     <h1>The little Windows fixes<br><span class="grad">you've been missing.</span></h1>
-    <p class="lede">Tiny, friendly tools for Windows' everyday annoyances. Pick what you like, skip the rest.</p>
+    <p class="lede">Small, free tools that fix everyday annoyances in Windows. Install the ones you want, skip the rest.</p>
     <div class="cta">
       <a class="btn" href="WindowsUnlockedToolkitSetup.exe" download>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
@@ -211,7 +211,7 @@
       </a>
       <a class="btn ghost" href="#tools">See what's inside</a>
     </div>
-    <p class="fine">One small app · {{TOOL_COUNT}} tools and counting · updates itself · no account, no ads, no tracking</p>
+    <p class="fine">{{TOOL_COUNT}} tools · updates itself · no account, no ads, no tracking</p>
     <!-- MOCKUP: the hero image is concept art of the coming tray app. Replace site/assets/hero.svg with a real screenshot when it ships. -->
     <div class="hero-shot"><img src="assets/hero.svg" alt="A Windows desktop with the Windows Unlocked tray panel open, showing a section for each tool with toggles, a pointer speed slider and glow colors" width="1200" height="680"></div>
   </div>
@@ -247,15 +247,15 @@
 <section id="tools">
   <div class="wrap">
     <div class="head">
-      <h2>Meet the toolkit.</h2>
-      <p>Tap a tool to see what it does. Install all of them, or just one.</p>
+      <h2>Tools</h2>
+      <p>Tap a tool to see what it does.</p>
     </div>
     <div class="tools">
 {{TOOLS}}
     </div>
     <button type="button" class="expand-all" id="expandAll">Open all</button>
     <div class="head" style="margin:48px auto 0">
-      <h2 style="font-size:1.3rem">On the workbench</h2>
+      <h2 style="font-size:1.3rem">Coming later</h2>
     </div>
     <ul class="soon">
 {{UPCOMING}}
@@ -266,8 +266,8 @@
 <section class="install" id="install">
   <div class="wrap">
     <div class="head">
-      <h2>Up and running in a minute.</h2>
-      <p>One small app holds every tool, and keeps them up to date.</p>
+      <h2>Install</h2>
+      <p>One setup app holds every tool and keeps them up to date.</p>
     </div>
     <div class="steps">
       <div class="step"><h3>Download</h3><p>Get <a href="WindowsUnlockedToolkitSetup.exe" download>the setup app</a>.</p></div>
@@ -293,7 +293,7 @@
 
 <section id="faq">
   <div class="wrap">
-    <div class="head"><h2>Questions, answered.</h2></div>
+    <div class="head"><h2>Questions</h2></div>
     <div class="faq">
       <details><summary>Is it safe?</summary><p>Everything is open source and built on your own PC, nothing is pre-compiled. The tools only use standard Windows features and don't go online. The tray app's update check downloads a version list from this website, and the installer when there's something new. Nothing about you is sent.</p></details>
       <details><summary>Why does Windows warn me about the file?</summary><p>It warns about any app without a paid signing certificate. This is a free hobby project.</p></details>
@@ -302,14 +302,14 @@
       <details><summary>Will it slow my PC down?</summary><p>No. They're small helpers that sleep until needed.</p></details>
       <details><summary>What does the installer download?</summary><p>Only AntiMicroX, through Windows' own <code>winget</code>, and only if you pick Leanback Mode and don't have it. Everything else is inside the setup as source code and built on your PC, so antivirus or Smart App Control may ask about it the first time.</p></details>
       <details><summary>Which Windows versions work?</summary><p>Made on Windows 11. Windows 10 should work too.</p></details>
-      <details><summary>Can I suggest a tool or report a bug?</summary><p>Yes please! <a href="{{REPO_URL}}/issues">Open an issue on GitHub</a>.</p></details>
+      <details><summary>Can I suggest a tool or report a bug?</summary><p><a href="{{REPO_URL}}/issues">Open an issue on GitHub</a>.</p></details>
     </div>
   </div>
 </section>
 
 <section id="friends" style="padding-top:24px">
   <div class="wrap">
-    <div class="head"><h2 style="font-size:1.6rem">Friends of the toolkit</h2></div>
+    <div class="head"><h2 style="font-size:1.6rem">Friends</h2></div>
     <div class="friends">
       <a class="friend" href="https://thehaugenproject.com/" target="_blank" rel="noopener">
         <div class="mark" aria-hidden="true">h</div>
@@ -325,7 +325,7 @@
 
 <footer>
   <div class="wrap">
-    <p class="made">Made with care (and a lot of help from Claude).</p>
+    <p class="made">Made with help from Claude.</p>
     <p>MIT licensed · Build {{BUILD}} · <a href="{{REPO_URL}}">Source on GitHub</a></p>
   </div>
 </footer>
