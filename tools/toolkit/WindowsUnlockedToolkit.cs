@@ -60,7 +60,7 @@ namespace UnlockedToolkit
 
     static class Program
     {
-        public const string Version = "1.6";
+        public const string Version = "1.7";
         public const string Site = "https://2wanderingcrows.github.io/windows-unlocked-toolkit/";
         public const string Repo = "https://github.com/2wanderingcrows/windows-unlocked-toolkit";
         public const string ShowEventName = "Local\\WindowsUnlockedToolkit_Show";
@@ -1842,6 +1842,18 @@ namespace UnlockedToolkit
         public string ScrollText { get { return layout.Scroll.ToString("0", CultureInfo.InvariantCulture); } }
         public bool Curve { get { return layout.Curve; } set { Layout(delegate { layout.Curve = value; }); } }
         public bool PauseGames { get { return Ini.Bool(cfg, "PauseMouseInGames", true); } set { Put("PauseMouseInGames", value ? "true" : "false"); } }
+        public bool StepAsideApps { get { return Ini.Bool(cfg, "StepAsideForApps", true); } set { Put("StepAsideForApps", value ? "true" : "false"); } }
+        public string ControllerApps
+        {
+            get { return C("ControllerApps", "Playnite.FullscreenApp.exe;kodi.exe;Steam Big Picture Mode"); }
+            set
+            {
+                var parts = new List<string>();
+                foreach (var x in (value ?? "").Split(new[] { ';', ',', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                    if (x.Trim().Length > 0) parts.Add(x.Trim());
+                Put("ControllerApps", string.Join(";", parts));
+            }
+        }
 
         public string ActionId(string button) { return ActionId(button, 1); }
         public string ActionLabel(string button) { return ActionLabel(button, 1); }
