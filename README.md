@@ -6,8 +6,7 @@
 
 <p align="center">
   <b>The little Windows fixes you've been missing.</b><br>
-  Tiny, friendly, open-source tools that smooth out the everyday annoyances.<br>
-  Pick the ones you like, skip the rest, remove any of them in a click.
+  Tiny, friendly, open-source tools. Pick what you like, skip the rest.
 </p>
 
 <p align="center">
@@ -31,139 +30,106 @@
 </p>
 <p align="center"><sub>The toolkit's tray menu (illustration). One icon, every tool.</sub></p>
 
-## Why you'll like it
-
-Windows is great, but it has a lot of small "why can't it just..." moments.
-This toolkit is a collection of fixes for exactly those moments. Each tool
-does one job, does it well, and then gets out of your way.
-
-|   |   |
-| --- | --- |
-| 🔒 **Private by design** | The tools never read what you type and never send anything anywhere. The only thing that goes online is the update check, which downloads a short version list from this site (and you can turn it off). |
-| 📖 **Readable, not mysterious** | No hidden programs. Every tool is plain source code, built on your PC by the compiler that already ships with Windows. |
-| ↩️ **Undo anytime** | Every tool has its own uninstaller that puts things back the way they were. |
-| 🔄 **Always fresh** | New versions install themselves quietly in the background while you're away, and keep your settings. One switch turns that off. |
-| 🪶 **Light as a feather** | Small background helpers that start with Windows and don't need admin rights unless they say so. |
-| 🎁 **Actually free** | No account, no ads, no "upgrade to Pro". MIT licensed. |
+🔒 Private (only the update check goes online) · 📖 Plain source, built on your PC · ↩️ Removes cleanly · 🔄 Updates itself · 🎁 Free, MIT
 
 ## Meet the toolkit
 
-### 🛋️ Leanback Mode: your PC, now a couch console
+Click a tool to see what it does.
 
-<!-- MOCKUP: illustration. Replace site/assets/leanback.svg with a real photo or screenshot (1200x640) when one exists. -->
+<details>
+<summary><b>🛋️ Leanback Mode</b>: your PC, now a couch console.</summary>
+
 <img src="site/assets/leanback.svg" alt="A TV showing large, couch-friendly Windows tiles and a big pointer, with a game controller in front of it">
 
-Using a PC on the TV is clumsy: tiny text, a pointer you can't find, and a
-keyboard you don't want on your lap. **Leanback Mode** notices when you pick
-up a controller and rearranges Windows for the couch.
+Pick up a controller and Windows rearranges itself for the couch. Put it down and your desktop is back.
 
-- ✅ Switches to Leanback mode the moment your controller turns on, and back to desktop mode when you switch it off
-- ✅ Controller dozed off mid-movie? You stay in Leanback mode until you turn it off yourself
-- ✅ Bigger text and a pointer you can actually see from across the room
-- ✅ Sticks move and scroll, buttons click, go back and open Start
-- ✅ **Hold Y for a fast pointer** that zips across a big TV or ultrawide in a blink, then let go for precise aiming
-- ✅ Hold LT and tilt the right stick to glide the volume up or down, or flip through your windows
-- ✅ Remap any button, or record your own key combos, right from the tray app
-- ✅ Steps aside on its own when you launch a game
-- ✅ Monitor and TV on one PC? Only the screen you pick gets bigger, and the pointer hops over to it
-- ✅ Works with Xbox, PlayStation, Switch Pro, 8BitDo and generic Bluetooth or 2.4 GHz pads
+- Turns on with your controller, off when you switch it off
+- Bigger text and a pointer you can see across the room
+- **Hold Y for a fast pointer** that crosses a big TV in a blink
+- Hold LT and tilt the right stick for volume or window switching
+- **Plays nice with Playnite, Steam Big Picture and Kodi**, handing them the controls while they're in front
+- **Map any button** to a key combo, or to open an app
+- **Finds every button on your controller**: Home, D-pad, paddles and extras
+- Steps aside on its own when a game starts
+- Monitor and TV? Only the screen you pick gets bigger
+- Xbox, PlayStation, Switch Pro, 8BitDo and generic Bluetooth or 2.4 GHz pads
 
-**Perfect for:** a PC plugged into the living-room TV, watching videos from bed, or anyone who'd rather hold a controller than a mouse.
-[How it works and settings →](tools/leanback)
+[Details and settings →](tools/leanback)
+</details>
 
-### 🎵 Media Tab Jump: who's making that noise? Found it.
+<details>
+<summary><b>🎵 Media Tab Jump</b>: who's making that noise? Found it.</summary>
 
-<!-- MOCKUP: illustration. Replace site/assets/mediatabjump.svg with a real screenshot (1200x640) when one exists. -->
 <img src="site/assets/mediatabjump.svg" alt="The Windows volume flyout with a glowing now-playing card, and an arrow to the browser tab that is playing">
 
-Thirty tabs open and something is playing. Windows shows you *what* is
-playing, but not *where*. **Media Tab Jump** turns the player in the volume
-flyout into a shortcut straight to the right tab.
+Something's playing in one of thirty tabs. Click the player in the volume flyout and land right on it.
 
-- ✅ Click the now-playing card and land on the exact tab, even in another window
-- ✅ Works with Edge, Chrome, Brave, Firefox, Opera and Vivaldi
-- ✅ A soft, color-shifting glow tells you the card is clickable
-- ✅ Play, pause and skip buttons keep working like always
-- ✅ Browser on another screen? Jump to it there, or have the window come to the screen you clicked on
-- ✅ No browser extension, nothing to sign in to
+- Jumps to the exact tab, even in another window or screen
+- Edge, Chrome, Brave, Firefox, Opera and Vivaldi
+- A soft glow shows the card is clickable
+- Play, pause and skip work like always
+- No browser extension, nothing to sign in to
 
-**Perfect for:** tab hoarders, podcast listeners, and anyone who's ever hunted for the tab that started playing an ad.
-[How it works →](tools/mediatabjump)
+[Details and settings →](tools/mediatabjump)
+</details>
 
-### 🔍 AutoZoom: every app at a comfortable size
+<details>
+<summary><b>🔍 AutoZoom</b>: every app at a comfortable size.</summary>
 
-<!-- MOCKUP: illustration. Replace site/assets/autozoom.svg with a real screenshot (1200x640) when one exists. -->
 <img src="site/assets/autozoom.svg" alt="The same app shown twice: maximized with larger text, and in a smaller window with text sized to fit">
 
-An app that looks great full-screen can feel cramped in half the screen, and
-the other way round. **AutoZoom** lets you pick how zoomed in each app is when
-its window is maximized and when it isn't, and switches by itself as you resize.
+Set how zoomed in each app is when maximized and when not. AutoZoom switches as you resize.
 
-- ✅ Any app that zooms with Ctrl and +: Claude, Teams, Discord, Slack, VS Code, Notepad, browsers
-- ✅ Two levels per app: one for maximized, one for everything else
-- ✅ Each window keeps its own zoom, so two windows of the same app never fight
-- ✅ Different levels per screen, so an app can be bigger on the TV than on your laptop, and switches as you drag it across
-- ✅ Add apps and set their zoom from the tray app, with changes applied instantly
-- ✅ Never reads the screen or what you type: it only presses the app's own zoom keys
+- Any app that zooms with Ctrl and +: Claude, Teams, Discord, VS Code, browsers
+- Each window keeps its own zoom
+- Different levels per screen, switching as you drag across
+- Set it all from the tray app, applied instantly
+- Only presses the app's own zoom keys, never reads the screen
 
-**Perfect for:** anyone who snaps windows side by side, switches between a laptop screen and a big monitor, or runs two accounts of the same app.
-[How it works →](tools/autozoom)
+[Details and settings →](tools/autozoom)
+</details>
 
-### 🎛️ Toolkit tray app: every tool, one tidy tray icon
+<details>
+<summary><b>🎛️ Toolkit tray app</b>: every tool, one tidy tray icon.</summary>
 
-Small helpers are great until you have five tray icons and five settings
-files. The **toolkit tray app** puts every tool behind one icon.
+<img src="site/assets/hero.svg" alt="The toolkit's tray menu: a Leanback mode card, tiles for Leanback Mode, Controller mouse, Media Tab Jump and Hover glow, and a Pause everything button">
 
-- ✅ Click once to flip between Leanback mode and desktop mode, or turn any tool on or off
-- ✅ Tune controller speed, scrolling and what every button does, without touching a config file
-- ✅ Pick the hover glow's colour, brightness and size, with a live preview
-- ✅ Choose which apps AutoZoom handles and how big each one gets
-- ✅ Light or dark, your Windows accent or one of nine colours, three tray icon styles
-- ✅ Pause everything for an hour when you need a plain PC
+Every tool behind one tray icon, with quick switches and a settings page for each.
 
-[How it works →](tools/toolkit)
+- One click between Leanback and desktop mode
+- Controller speed, buttons and key combos without config files
+- Glow colours and AutoZoom levels with live preview
+- Light or dark, nine accent colours, three icon styles
+- Pause everything for an hour
 
-### 🛠️ On the workbench
+[Details and settings →](tools/toolkit)
+</details>
 
-These are being polished and will join the same installer when they're ready:
-
-- **Window Tab Organizer**: for anyone with way too many windows open
-- **Startup Minimizer**: sign in to a calm desktop, not a pile of windows
-
-Have an idea for a tool? [Open an issue](https://github.com/2wanderingcrows/windows-unlocked-toolkit/issues) and say what bugs you.
+**On the workbench:** Window Tab Organizer, Startup Minimizer.
+Have an idea? [Open an issue](https://github.com/2wanderingcrows/windows-unlocked-toolkit/issues).
 
 ## Install in a minute
 
-1. **Download** [`WindowsUnlockedToolkitSetup.exe`](https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkitSetup.exe). It's one small app with every tool inside.
-2. **Open it.** If Windows says it "protected your PC", choose **More info**, then **Run anyway**. (That warning appears for any app without a paid signing certificate.)
-3. **Pick your tools and press Install.** That's it. No admin rights, no command window.
+1. **Download** [`WindowsUnlockedToolkitSetup.exe`](https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkitSetup.exe).
+2. **Open it.** If Windows says it "protected your PC", choose **More info**, then **Run anyway**.
+3. **Pick your tools and press Install.** No admin rights needed.
 
-Open the setup again any time to add tools, or find **Windows Unlocked Toolkit**
-in **Settings > Apps** to change or remove them. Every version is also on the
-[Releases page](https://github.com/2wanderingcrows/windows-unlocked-toolkit/releases).
+New versions then install themselves quietly while you're away, keeping your
+settings. Turn that off in the tray app under **Updates and about**. Every
+version is also on the [Releases page](https://github.com/2wanderingcrows/windows-unlocked-toolkit/releases).
 
-**Updates are automatic.** The toolkit's tray app checks for new versions every
-few hours and installs them quietly when you've stepped away from your PC. Your
-settings stay as they are, tools you turned off stay off, and your custom
-controller buttons are kept. Turn it off in the tray app under
-**Updates and about > Update automatically**; it then only checks when you press
-**Check for updates**.
+<details>
+<summary>Other ways to install</summary>
 
-**Prefer the terminal?** Paste this into PowerShell for a text menu:
+Paste this into PowerShell for a text menu:
 
 ```powershell
 irm https://2wanderingcrows.github.io/windows-unlocked-toolkit/install.ps1 | iex
 ```
 
-Or download [`WindowsUnlockedToolkit.cmd`](https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkit.cmd), the same menu in a double-clickable file.
-
-**Want just one tool?** Open its folder under [`tools/`](tools), download it,
-and run its `Install.cmd`.
-
-The setup holds each tool's full source. The only thing it downloads is
-AntiMicroX (with `winget`), and only if you pick Leanback Mode and don't have
-it yet. Some tools are built on your PC with the C# compiler that comes with
-Windows, so antivirus or Smart App Control may ask about them the first time.
+Or download [`WindowsUnlockedToolkit.cmd`](https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkit.cmd), the same menu as a file.
+For one tool only, open its folder under [`tools/`](tools) and run `Install.cmd`.
+</details>
 
 ## Questions
 
@@ -189,6 +155,14 @@ back to how they were.
 </details>
 
 <details>
+<summary><b>What does the installer download?</b></summary>
+
+Only AntiMicroX (with `winget`), and only if you pick Leanback Mode and don't
+have it. Everything else is source code built on your PC, so antivirus or
+Smart App Control may ask about it the first time.
+</details>
+
+<details>
 <summary><b>Will it slow my PC down?</b></summary>
 
 No. The tools are small background helpers that mostly sleep until you need
@@ -204,6 +178,9 @@ with the last few lines and it'll get looked at.
 </details>
 
 ## How this repo works
+
+<details>
+<summary>For contributors</summary>
 
 - Every tool lives in its own folder in [`tools/`](tools), with a `tool.json`
   describing it.
@@ -221,6 +198,7 @@ with the last few lines and it'll get looked at.
   [`site/showcase.json`](site/showcase.json), and the pictures live in
   [`site/assets/`](site/assets). Pictures marked as mockups are illustrations;
   swap in real screenshots at the same size and set `"mockup": false`.
+</details>
 
 ## Friends
 
