@@ -67,13 +67,25 @@ try {
                  '/r:PresentationFramework.dll', '/r:PresentationCore.dll', '/r:WindowsBase.dll', '/r:System.Xaml.dll',
                  '/r:System.Xml.dll', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll')
     foreach ($x in 'Theme.xaml', 'MainWindow.xaml', 'Flyout.xaml') { $cscArgs += "/resource:$(Join-Path $srcDir $x),$x" }
-    $cscArgs += "/out:$exe"
-    $cscArgs += (Join-Path $srcDir 'WindowsUnlockedToolkit.cs')
-    $buildOutput = & $csc @cscArgs 2>&1
+    # Built twice: first to draw the app icon (--make-icon), then with that icon inside, so the
+    # taskbar, Start menu and Alt+Tab show the toolkit's padlock instead of a blank program icon.
+    $plain = Join-Path $srcDir 'WindowsUnlockedToolkit-noicon.exe'
+    $ico = Join-Path $srcDir 'toolkit.ico'
+    $buildOutput = & $csc @cscArgs "/out:$plain" (Join-Path $srcDir 'WindowsUnlockedToolkit.cs') 2>&1
     if ($LASTEXITCODE -ne 0) {
         $buildOutput | Where-Object { $_ -match 'error' } | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
         throw 'Building WindowsUnlockedToolkit.exe failed (see errors above).'
     }
+    $iconArg = @()
+    $p = Start-Process -FilePath $plain -ArgumentList '--make-icon', "`"$ico`"" -Wait -PassThru -WindowStyle Hidden
+    if ($p.ExitCode -eq 0 -and (Test-Path -LiteralPath $ico)) { $iconArg = @("/win32icon:$ico") }
+    else { Write-Info 'could not draw the app icon; using the plain one' }
+    $buildOutput = & $csc @cscArgs @iconArg "/out:$exe" (Join-Path $srcDir 'WindowsUnlockedToolkit.cs') 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $buildOutput | Where-Object { $_ -match 'error' } | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
+        throw 'Building WindowsUnlockedToolkit.exe failed (see errors above).'
+    }
+    Remove-Item -LiteralPath $plain -Force -ErrorAction SilentlyContinue
     Write-Info "built $exe"
 
     Write-Step 'Start at sign-in'

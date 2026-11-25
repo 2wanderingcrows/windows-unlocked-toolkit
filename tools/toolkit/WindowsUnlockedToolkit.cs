@@ -22,6 +22,7 @@
 // Options:
 //   --settings            start and open the settings window (used right after install)
 //   --exit                close the running copy (used by the installer and uninstaller)
+//   --make-icon <file.ico>  write the app icon (Install.ps1 builds it into the .exe for the taskbar and Start menu)
 //   --selftest <folder> [layout.amgp]   render every page to PNG with sample data and check bindings, then exit
 // ---------------------------------------------------------------------------
 
@@ -59,7 +60,7 @@ namespace UnlockedToolkit
 
     static class Program
     {
-        public const string Version = "1.4";
+        public const string Version = "1.5";
         public const string Site = "https://2wanderingcrows.github.io/windows-unlocked-toolkit/";
         public const string Repo = "https://github.com/2wanderingcrows/windows-unlocked-toolkit";
         public const string ShowEventName = "Local\\WindowsUnlockedToolkit_Show";
@@ -71,6 +72,7 @@ namespace UnlockedToolkit
             string first = args.Length > 0 ? args[0].ToLowerInvariant() : "";
             if (first == "--selftest") return SelfTest.Run(args.Length > 1 ? args[1] : ".", args.Length > 2 ? args[2] : null);
             if (first == "--exit") return AskToExit();
+            if (first == "--make-icon") return Shell.WriteAppIcon(args.Length > 1 ? args[1] : "toolkit.ico");
 
             bool created;
             var mutex = new Mutex(true, "Local\\WindowsUnlockedToolkit", out created);
@@ -3500,9 +3502,67 @@ namespace UnlockedToolkit
 
         [DllImport("user32.dll")] static extern bool DestroyIcon(IntPtr handle);
 
+        // The app's own icon (taskbar, title bar, Start menu): the toolkit's blue-violet tile with an open
+        // padlock, the same mark as the website and the setup app. The tray icon follows Appearance instead.
+        public static SD.Bitmap DrawAppIcon(int size)
+        {
+            var bmp = new SD.Bitmap(size, size, SD.Imaging.PixelFormat.Format32bppArgb);
+            using (var g = SD.Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SD.Drawing2D.SmoothingMode.AntiAlias;
+                g.Clear(SD.Color.Transparent);
+                float s = size / 64f;
+                using (var path = Rounded(1 * s, 1 * s, 62 * s, 62 * s, 15 * s))
+                using (var fill = new SD.Drawing2D.LinearGradientBrush(new SD.PointF(0, 0), new SD.PointF(size, size), SD.Color.FromArgb(0x3B, 0x6C, 0xF6), SD.Color.FromArgb(0x7C, 0x5C, 0xFF)))
+                    g.FillPath(fill, path);
+                float stroke = Math.Max(1.5f, 4.2f * s);
+                using (var pen = new SD.Pen(SD.Color.White, stroke))
+                using (var body = Rounded(17 * s, 29 * s, 30 * s, 22 * s, 4 * s))
+                using (var white = new SD.SolidBrush(SD.Color.White))
+                {
+                    pen.StartCap = pen.EndCap = SD.Drawing2D.LineCap.Round;
+                    g.FillPath(white, body);
+                    g.DrawArc(pen, 22 * s, 12 * s, 18 * s, 20 * s, 180, 150); // open shackle
+                    g.DrawLine(pen, 22 * s, 22 * s, 22 * s, 29.5f * s);
+                }
+            }
+            return bmp;
+        }
+
+        // A .ico with every size Windows asks for (PNG entries).
+        public static int WriteAppIcon(string path)
+        {
+            var sizes = new[] { 16, 20, 24, 32, 40, 48, 64, 256 };
+            var images = new List<byte[]>();
+            foreach (int size in sizes)
+                using (var bmp = DrawAppIcon(size))
+                using (var ms = new MemoryStream())
+                {
+                    bmp.Save(ms, SD.Imaging.ImageFormat.Png);
+                    images.Add(ms.ToArray());
+                }
+            using (var f = File.Create(path))
+            using (var w = new BinaryWriter(f))
+            {
+                w.Write((short)0); w.Write((short)1); w.Write((short)sizes.Length);
+                int offset = 6 + 16 * sizes.Length;
+                for (int i = 0; i < sizes.Length; i++)
+                {
+                    w.Write((byte)(sizes[i] >= 256 ? 0 : sizes[i]));
+                    w.Write((byte)(sizes[i] >= 256 ? 0 : sizes[i]));
+                    w.Write((byte)0); w.Write((byte)0);
+                    w.Write((short)1); w.Write((short)32);
+                    w.Write(images[i].Length); w.Write(offset);
+                    offset += images[i].Length;
+                }
+                foreach (var img in images) w.Write(img);
+            }
+            return 0;
+        }
+
         ImageSource IconImage()
         {
-            using (var bmp = DrawIcon(64, "Lock", Theme.Accent, false, false))
+            using (var bmp = DrawAppIcon(64))
             {
                 var ms = new MemoryStream();
                 bmp.Save(ms, SD.Imaging.ImageFormat.Png);
