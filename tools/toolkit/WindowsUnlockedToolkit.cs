@@ -60,7 +60,7 @@ namespace UnlockedToolkit
 
     static class Program
     {
-        public const string Version = "1.7";
+        public const string Version = "1.8";
         public const string Site = "https://2wanderingcrows.github.io/windows-unlocked-toolkit/";
         public const string Repo = "https://github.com/2wanderingcrows/windows-unlocked-toolkit";
         public const string ShowEventName = "Local\\WindowsUnlockedToolkit_Show";
@@ -585,6 +585,59 @@ namespace UnlockedToolkit
         }
     }
 
+    // Asks SDL (the library AntiMicroX itself uses) which extra buttons the connected controllers have.
+    static class PadButtons
+    {
+        public static readonly HashSet<string> Extras = new HashSet<string>();
+        static bool started;
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern IntPtr LoadLibrary(string path);
+        [DllImport("SDL2.dll", CallingConvention = CallingConvention.Cdecl)] static extern int SDL_Init(uint flags);
+        [DllImport("SDL2.dll", CallingConvention = CallingConvention.Cdecl)] static extern void SDL_Quit();
+        [DllImport("SDL2.dll", CallingConvention = CallingConvention.Cdecl)] static extern int SDL_NumJoysticks();
+        [DllImport("SDL2.dll", CallingConvention = CallingConvention.Cdecl)] static extern int SDL_IsGameController(int index);
+        [DllImport("SDL2.dll", CallingConvention = CallingConvention.Cdecl)] static extern IntPtr SDL_GameControllerOpen(int index);
+        [DllImport("SDL2.dll", CallingConvention = CallingConvention.Cdecl)] static extern void SDL_GameControllerClose(IntPtr pad);
+        [DllImport("SDL2.dll", CallingConvention = CallingConvention.Cdecl)] static extern int SDL_GameControllerHasButton(IntPtr pad, int button);
+
+        // SDL_GameControllerButton values: 15 misc1, 16-19 paddle1-4, 20 touchpad.
+        static readonly string[] Names = { "Misc", "P1", "P2", "P3", "P4", "Pad" };
+
+        public static void Detect(Action done)
+        {
+            if (started || Shell.Demo) return;
+            started = true;
+            var t = new Thread(delegate()
+            {
+                try
+                {
+                    string dll = Path.Combine(Path.GetDirectoryName(Amx.Exe) ?? "", "SDL2.dll");
+                    if (!File.Exists(dll) || LoadLibrary(dll) == IntPtr.Zero) return;
+                    if (SDL_Init(0x2000 | 0x200) != 0) return; // game controller + joystick
+                    var found = new HashSet<string>();
+                    try
+                    {
+                        for (int i = 0; i < SDL_NumJoysticks(); i++)
+                        {
+                            if (SDL_IsGameController(i) == 0) continue;
+                            IntPtr pad = SDL_GameControllerOpen(i);
+                            if (pad == IntPtr.Zero) continue;
+                            for (int b = 0; b < Names.Length; b++) if (SDL_GameControllerHasButton(pad, 15 + b) != 0) found.Add(Names[b]);
+                            SDL_GameControllerClose(pad);
+                        }
+                    }
+                    finally { SDL_Quit(); }
+                    lock (Extras) { Extras.Clear(); Extras.UnionWith(found); }
+                    if (found.Count > 0) Log.Write("controller has extra buttons: " + string.Join(", ", found));
+                    if (done != null) done();
+                }
+                catch (Exception ex) { Log.Write("couldn't ask SDL about the controller's buttons: " + ex.Message); }
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+    }
+
     static class Amx
     {
         public const string Shortcut = "AntiMicroX (controller mouse).lnk";
@@ -799,13 +852,22 @@ namespace UnlockedToolkit
             new MouseAction("none", "Nothing", "", "")
         };
 
-        // Shown name, AntiMicroX element. LT/RT are triggers 5/6; buttons use SDL numbering (1-based).
+        // Shown name, AntiMicroX element. LT/RT are triggers 5/6; buttons use SDL game controller numbering (1-based):
+        // 1 A, 2 B, 3 X, 4 Y, 5 Back/Select, 6 Home, 7 Start, 8 LS, 9 RS, 10 LB, 11 RB, 16 Misc, 17-20 paddles, 21 touchpad.
+        // The D-pad is dpad 1 (up 1, right 2, down 4, left 8). Y is the fast pointer, set on its own card.
         public static readonly string[][] Buttons =
         {
             new[] { "A", "button:1" }, new[] { "B", "button:2" }, new[] { "X", "button:3" },
             new[] { "LB", "button:10" }, new[] { "RB", "button:11" }, new[] { "LT", "trigger:5" }, new[] { "RT", "trigger:6" },
-            new[] { "Back", "button:5" }, new[] { "Start", "button:7" }, new[] { "LS", "button:8" }, new[] { "RS", "button:9" }
+            new[] { "Select", "button:5" }, new[] { "Start", "button:7" }, new[] { "Home", "button:6" },
+            new[] { "LS", "button:8" }, new[] { "RS", "button:9" },
+            new[] { "\u2191", "dpad:1:1" }, new[] { "\u2193", "dpad:1:4" }, new[] { "\u2190", "dpad:1:8" }, new[] { "\u2192", "dpad:1:2" },
+            new[] { "Misc", "button:16" }, new[] { "P1", "button:17" }, new[] { "P2", "button:18" },
+            new[] { "P3", "button:19" }, new[] { "P4", "button:20" }, new[] { "Pad", "button:21" }
         };
+
+        // Extra buttons only some controllers have; shown when the connected controller reports them.
+        public static readonly string[] ExtraButtons = { "Misc", "P1", "P2", "P3", "P4", "Pad" };
 
         // Buttons that can be held for the second layer.
         public static readonly string[] LayerButtons = { "LT", "RT", "LB", "RB" };
@@ -1026,6 +1088,11 @@ namespace UnlockedToolkit
             var set = SetEl(setIndex, false);
             if (set == null || where == null) return null;
             string[] parts = where.Split(':');
+            if (parts[0] == "dpad")
+            {
+                var pad = El(set, "dpad", parts[1], create);
+                return pad == null ? null : El(pad, "dpadbutton", parts[2], create);
+            }
             if (parts[0] == "trigger")
             {
                 var trig = El(set, "trigger", parts[1], create);
@@ -1538,11 +1605,24 @@ namespace UnlockedToolkit
             saveLayout = new Debounce(900, FlushLayout);
             Mappings = new ObservableCollection<Mapping>();
             LayerMappings = new ObservableCollection<Mapping>();
-            foreach (var b in MouseLayout.Buttons) { Mappings.Add(new Mapping(this, b[0], 1)); LayerMappings.Add(new Mapping(this, b[0], 2)); }
+            ShowButtons(PadButtons.Extras);
+            PadButtons.Detect(delegate { Application.Current.Dispatcher.BeginInvoke(new Action(delegate { ShowButtons(PadButtons.Extras); })); });
             Devices = new ObservableCollection<Device>();
             ScreenChips = new ObservableCollection<ScreenChip>();
             ToggleTv = new Cmd(shell.ToggleTv);
             ChangeHotkey = new Cmd(delegate { Capturing = !Capturing; });
+        }
+
+        // Rows for every button the controller has: the standard ones plus any extras it reports (paddles, misc, touchpad).
+        void ShowButtons(ICollection<string> extras)
+        {
+            var want = new List<string>();
+            lock (extras)
+                foreach (var b in MouseLayout.Buttons)
+                    if (Array.IndexOf(MouseLayout.ExtraButtons, b[0]) < 0 || extras.Contains(b[0])) want.Add(b[0]);
+            if (Mappings.Count == want.Count) return;
+            Mappings.Clear(); LayerMappings.Clear();
+            foreach (var b in want) { Mappings.Add(new Mapping(this, b, 1)); LayerMappings.Add(new Mapping(this, b, 2)); }
         }
 
         Snap S { get { return shell.State; } }
@@ -3845,7 +3925,9 @@ namespace UnlockedToolkit
             expect(LeanVm.TapToId(LeanVm.TapText("app:" + notepad)) == "app:" + notepad, "app tap text reads back");
             m.Map["Start"] = "app:" + notepad;
             m.Map["X"] = ctrlK;
-            m.Map2["Back"] = "alttab";
+            m.Map2["Select"] = "alttab";
+            m.Map["Home"] = "app:" + notepad;
+            m.Map["\u2192"] = "next";
             m.Map["LT"] = "space"; m.Map2["LT"] = "space";
             m.LayerButton = "RB";
             string copy = Path.Combine(outDir, "layout-roundtrip.amgp");
@@ -3856,7 +3938,10 @@ namespace UnlockedToolkit
             expect(r.Get(1, "Start") == "app:" + notepad, "Start opens Notepad (got " + r.Get(1, "Start") + ")");
             expect(MouseLayout.Label(r.Get(1, "Start")).StartsWith("Open "), "app label (got " + MouseLayout.Label(r.Get(1, "Start")) + ")");
             expect(r.Get(1, "X") == ctrlK, "X keeps Ctrl+K (got " + r.Get(1, "X") + ")");
-            expect(r.Get(2, "Back") == "alttab", "Back while holding is Alt+Tab (got " + r.Get(2, "Back") + ")");
+            expect(r.Get(2, "Select") == "alttab", "Select while holding is Alt+Tab (got " + r.Get(2, "Select") + ")");
+            expect(r.Get(1, "Home") == "app:" + notepad, "Home opens Notepad (got " + r.Get(1, "Home") + ")");
+            expect(r.Get(1, "\u2192") == "next", "D-pad right is Next track (got " + r.Get(1, "\u2192") + ")");
+            expect(r.Get(1, "\u2191") != "(missing)", "D-pad up is read");
             expect(r.Get(1, "LT") == "space", "LT is Space again (got " + r.Get(1, "LT") + ")");
 
             report.AppendLine(bad.Count == 0 ? "layout round trip OK" : "layout round trip FAILED: " + string.Join("; ", bad));
