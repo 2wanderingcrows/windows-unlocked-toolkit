@@ -958,11 +958,11 @@ namespace UnlockedToolkitSetup
             for (int i = 0; i < 3; i++)
             {
                 Ui.Settle();
-                root.Measure(new Size(640, 780));
-                root.Arrange(new Rect(0, 0, 640, 780));
+                root.Measure(new Size(640, 720));
+                root.Arrange(new Rect(0, 0, 640, 720));
                 root.UpdateLayout();
             }
-            var rtb = new RenderTargetBitmap(640, 780, 96, 96, PixelFormats.Pbgra32);
+            var rtb = new RenderTargetBitmap(640, 720, 96, 96, PixelFormats.Pbgra32);
             rtb.Render(root);
             var enc = new PngBitmapEncoder();
             enc.Frames.Add(BitmapFrame.Create(rtb));

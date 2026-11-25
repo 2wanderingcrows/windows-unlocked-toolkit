@@ -1,6 +1,6 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Windows Unlocked Toolkit Setup" Width="640" Height="780" MinHeight="560"
+        Title="Windows Unlocked Toolkit Setup" Width="640" Height="720"
         ResizeMode="CanMinimize" WindowStartupLocation="CenterScreen" Background="{DynamicResource BgWin}"
         FontFamily="{DynamicResource UiFont}" FontSize="14" Foreground="{DynamicResource Ink}"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
