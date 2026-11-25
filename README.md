@@ -82,6 +82,8 @@ Coming later: Window Tab Organizer, Startup Minimizer.
    your downloads list and choose **Keep**.
 3. Pick your tools and press **Install**. No admin rights needed.
 
+This project uses SignPath Foundation for code signing: free code signing provided by
+[SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 See the [code signing policy](CODE_SIGNING_POLICY.md) for how the setup app is built and signed.
 
 Updates install themselves in the background and keep your settings. You can
