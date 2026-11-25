@@ -11,7 +11,10 @@
 //   Media Tab Jump   %LOCALAPPDATA%\MediaTabJump\settings.ini and glow-off.txt
 //   AutoZoom         %LOCALAPPDATA%\AutoZoom\settings.ini (it reloads on save)
 // Its own settings and log are in %LOCALAPPDATA%\WindowsUnlockedToolkit.
-// Nothing here goes online. "Get the latest version" and the GitHub buttons just open your browser.
+// Automatic updates (on unless you turn them off): every few hours it downloads the small manifest.ini
+// from the toolkit's website to compare versions. When a tool you have is newer there, it downloads
+// install.ps1 from the same site and runs it quietly while you're away from the PC (see Updater).
+// That's the only time it goes online. The GitHub buttons just open your browser.
 //
 // Built on your PC by Install.ps1 with the C# compiler that ships with Windows (.NET Framework 4.x, C# 5).
 // The window layouts (Theme.xaml, MainWindow.xaml, Flyout.xaml) are embedded with /resource.
@@ -29,6 +32,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Net;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -55,7 +59,7 @@ namespace UnlockedToolkit
 
     static class Program
     {
-        public const string Version = "1.3";
+        public const string Version = "1.4";
         public const string Site = "https://2wanderingcrows.github.io/windows-unlocked-toolkit/";
         public const string Repo = "https://github.com/2wanderingcrows/windows-unlocked-toolkit";
         public const string ShowEventName = "Local\\WindowsUnlockedToolkit_Show";
@@ -2544,13 +2548,281 @@ namespace UnlockedToolkit
         public bool Motion { get { return Theme.Motion; } set { Theme.Motion = value; Changed(); } }
     }
 
+    // ------------------------------------------------------------------ automatic updates
+    // Every few hours: download manifest.ini from the website (a few hundred bytes) and compare each
+    // tool's version with %LOCALAPPDATA%\WindowsUnlockedToolkit\installed.ini (written by the installer).
+    // When something you have is newer, and you've been away from the PC for 10 minutes, it downloads
+    // install.ps1 from the same site and runs it hidden with WUT_MODE=update. That reinstalls only the
+    // tools that changed and keeps their settings. The installer writes update-status.ini when it's done.
+    // Updating the tray app itself closes this copy; the installer starts the new one.
+    static class Updater
+    {
+        public static string ManifestUrl { get { return Program.Site + "manifest.ini"; } }
+        static readonly TimeSpan CheckEvery = TimeSpan.FromHours(3);
+        static readonly TimeSpan IdleNeeded = TimeSpan.FromMinutes(10);
+        static readonly TimeSpan RetryAfter = TimeSpan.FromHours(6);
+
+        public static string State = "idle";       // idle | checking | current | ready | updating | error
+        public static string Error = "";
+        public static string PendingText = "";     // "Leanback Mode 1.4, AutoZoom 1.2"
+        public static DateTime LastCheck;
+        public static event Action Changed;
+
+        static string pendingBuild, installerUrl;
+        static DateTime nextCheck, lastAttempt;
+        static Process running;
+        static DispatcherTimer timer;
+
+        static string StatusFile { get { return Path.Combine(P.Data, "update-status.ini"); } }
+        static string VersionFile { get { return Path.Combine(P.Data, "installed.ini"); } }
+        static string WorkDir { get { return Path.Combine(P.Data, "updates"); } }
+
+        public static bool Auto
+        {
+            get { return Ini.Bool(Ini.Read(P.Settings), "AutoUpdate", true); }
+            set
+            {
+                Ini.Update(P.Settings, Ini.Pairs("AutoUpdate", value ? "true" : "false"));
+                Log.Write("automatic updates " + (value ? "on" : "off"));
+                Raise();
+            }
+        }
+
+        // What the last automatic update did, from update-status.ini ("" if nothing yet).
+        public static string LastResult
+        {
+            get
+            {
+                var d = Ini.Read(StatusFile);
+                string result = Ini.Get(d, "Result", ""), when = Ini.Get(d, "Checked", "");
+                DateTime t;
+                string at = DateTime.TryParseExact(when, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out t) ? Friendly(t) : when;
+                if (result == "updated") return "Last update " + at + ": " + Ini.Get(d, "Updated", "") + ".";
+                if (result == "failed") return "The last update (" + at + ") didn\u2019t finish: " + Ini.Get(d, "Failed", "") + ". It tries again later; the log is in the logs folder.";
+                return "";
+            }
+        }
+
+        public static string Friendly(DateTime t)
+        {
+            if (t.Date == DateTime.Today) return "today at " + t.ToString("t", CultureInfo.CurrentCulture);
+            if (t.Date == DateTime.Today.AddDays(-1)) return "yesterday at " + t.ToString("t", CultureInfo.CurrentCulture);
+            return t.ToString("MMM d", CultureInfo.CurrentCulture) + " at " + t.ToString("t", CultureInfo.CurrentCulture);
+        }
+
+        static void Raise() { if (Changed != null) Changed(); }
+
+        public static void Start()
+        {
+            if (Shell.Demo) return;
+            var d = Ini.Read(P.Settings);
+            DateTime t;
+            if (DateTime.TryParseExact(Ini.Get(d, "LastUpdateAttempt", ""), "o", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out t)) lastAttempt = t;
+            nextCheck = DateTime.Now.AddMinutes(2);
+            timer = new DispatcherTimer();
+            timer.Interval = TimeSpan.FromSeconds(30);
+            timer.Tick += delegate { Tick(); };
+            timer.Start();
+        }
+
+        static void Tick()
+        {
+            if (running != null)
+            {
+                bool exited = true;
+                try { exited = running.HasExited; } catch { }
+                if (!exited) return;
+                running.Dispose(); running = null;
+                Log.Write("update finished: " + LastResult);
+                State = "idle";
+                Raise();
+                Check(false); // see what's left
+                return;
+            }
+            if (State == "checking" || State == "updating") return;
+            if (DateTime.Now >= nextCheck && Auto) Check(false); // with automatic updates off, it only checks when you ask
+            else if (State == "ready" && Auto && !Shell.Paused && IdleTime() >= IdleNeeded && DateTime.Now - lastAttempt >= RetryAfter)
+                Install();
+        }
+
+        public static void CheckNow() { if (State != "checking" && State != "updating") Check(true); }
+
+        public static void UpdateNow() { if (State == "ready") Install(); }
+
+        static void Check(bool manual)
+        {
+            nextCheck = DateTime.Now + CheckEvery;
+            State = "checking";
+            Raise();
+            string err = null;
+            var pending = new List<string>();
+            string build = null, url = null;
+            Procs.Background(delegate
+            {
+                try
+                {
+                    var m = ParseIni(Download(ManifestUrl + "?t=" + DateTime.UtcNow.Ticks));
+                    build = Ini.Get(m, "build", "");
+                    url = Ini.Get(m, "installer", "");
+                    var have = Ini.Read(VersionFile);
+                    foreach (var raw in Ini.Get(m, "tools", "").Split(','))
+                    {
+                        string id = raw.Trim();
+                        if (id.Length == 0) continue;
+                        string newest = Ini.Get(m, id + ".version", "");
+                        if (newest.Length == 0 || Ini.Bool(m, id + ".admin", false)) continue;
+                        string mine = Ini.Get(have, id, "");
+                        if (mine.Length == 0)
+                        {
+                            string detect = Ini.Get(m, id + ".detect", "");
+                            if (detect.Length == 0 || !File.Exists(Environment.ExpandEnvironmentVariables(detect))) continue; // not installed
+                            mine = "?";
+                        }
+                        if (mine != newest) pending.Add(Ini.Get(m, id + ".name", id) + " " + newest);
+                    }
+                }
+                catch (Exception ex) { err = ex.Message; }
+            }, delegate
+            {
+                LastCheck = DateTime.Now;
+                if (err != null)
+                {
+                    State = "error"; Error = err;
+                    nextCheck = DateTime.Now.AddMinutes(30);
+                    Log.Write("update check failed: " + err);
+                }
+                else if (pending.Count == 0) { State = "current"; PendingText = ""; }
+                else
+                {
+                    State = "ready"; PendingText = string.Join(", ", pending.ToArray());
+                    pendingBuild = build; installerUrl = url;
+                    Log.Write("update available (" + build + "): " + PendingText);
+                }
+                Raise();
+            });
+        }
+
+        static void Install()
+        {
+            State = "updating";
+            lastAttempt = DateTime.Now;
+            Ini.Update(P.Settings, Ini.Pairs("LastUpdateAttempt", lastAttempt.ToString("o", CultureInfo.InvariantCulture)));
+            Raise();
+            string err = null, script = Path.Combine(WorkDir, "install.ps1"), log = Path.Combine(P.Data, "update-log.txt");
+            string url = installerUrl, build = pendingBuild;
+            Process proc = null;
+            Procs.Background(delegate
+            {
+                try
+                {
+                    // Only ever run the installer from the toolkit's own website.
+                    if (string.IsNullOrEmpty(url) || !url.StartsWith(Program.Site, StringComparison.OrdinalIgnoreCase)) url = Program.Site + "install.ps1";
+                    string text = Download(url + "?t=" + DateTime.UtcNow.Ticks);
+                    if (text.IndexOf("##WUT-POWERSHELL-BELOW##", StringComparison.Ordinal) < 0) throw new Exception("the download wasn't the toolkit installer");
+                    Directory.CreateDirectory(WorkDir);
+                    File.WriteAllText(script, text, Encoding.ASCII);
+                    string ps = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"WindowsPowerShell\v1.0\powershell.exe");
+                    string cmd = "Start-Transcript -LiteralPath '" + log.Replace("'", "''") + "' -Force | Out-Null; " +
+                                 "try { & '" + script.Replace("'", "''") + "' } finally { Stop-Transcript | Out-Null }";
+                    var psi = new ProcessStartInfo(ps, "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"" + cmd + "\"");
+                    psi.UseShellExecute = false;
+                    psi.CreateNoWindow = true;
+                    psi.WorkingDirectory = WorkDir;
+                    psi.EnvironmentVariables["WUT_MODE"] = "update";
+                    proc = Process.Start(psi);
+                }
+                catch (Exception ex) { err = ex.Message; }
+            }, delegate
+            {
+                if (err != null)
+                {
+                    State = "error"; Error = err;
+                    Log.Write("update failed to start: " + err);
+                }
+                else
+                {
+                    running = proc;
+                    Log.Write("updating to " + build + ": " + PendingText);
+                }
+                Raise();
+            });
+        }
+
+        static string Download(string url)
+        {
+            ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+            using (var wc = new WebClient())
+            {
+                wc.Headers[HttpRequestHeader.UserAgent] = "WindowsUnlockedToolkit/" + Program.Version;
+                wc.Headers[HttpRequestHeader.CacheControl] = "no-cache";
+                wc.Encoding = Encoding.UTF8;
+                return wc.DownloadString(url);
+            }
+        }
+
+        static Dictionary<string, string> ParseIni(string text)
+        {
+            var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var raw in text.Split('\n'))
+            {
+                string line = raw.Trim();
+                if (line.Length == 0 || line[0] == '#') continue;
+                int eq = line.IndexOf('=');
+                if (eq > 0) d[line.Substring(0, eq).Trim()] = line.Substring(eq + 1).Trim();
+            }
+            if (!d.ContainsKey("tools")) throw new Exception("the update list from the website was empty");
+            return d;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
+        [DllImport("user32.dll")] static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
+
+        // Time since the last key press, mouse move or controller input (AntiMicroX's counts too).
+        static TimeSpan IdleTime()
+        {
+            var info = new LASTINPUTINFO();
+            info.cbSize = (uint)Marshal.SizeOf(info);
+            if (!GetLastInputInfo(ref info)) return TimeSpan.Zero;
+            return TimeSpan.FromMilliseconds(unchecked((uint)Environment.TickCount - info.dwTime));
+        }
+    }
+
     // ------------------------------------------------------------------ Updates and about page
 
     class AboutVm : Obs
     {
         const string RunName = "WindowsUnlockedToolkit";
+        public AboutVm()
+        {
+            Updater.Changed += delegate { RaiseAll(); };
+        }
+
         public string VersionTitle { get { return "Windows Unlocked Toolkit " + Program.Version; } }
-        public string VersionHint { get { return "Updates aren't automatic yet. The website always has the newest installer, and it keeps your settings."; } }
+        public string VersionHint
+        {
+            get
+            {
+                if (Shell.Demo) return "You\u2019re up to date. Checked today at 9:41 AM.";
+                string last = Updater.LastResult;
+                string tail = last.Length > 0 ? " " + last : "";
+                switch (Updater.State)
+                {
+                    case "checking": return "Checking for updates\u2026";
+                    case "updating": return "Installing " + Updater.PendingText + " in the background. Your settings are kept.";
+                    case "ready":
+                        return "Update ready: " + Updater.PendingText + "." +
+                               (Updater.Auto ? " It installs by itself the next time you step away from your PC." : " Automatic updates are off, so it waits for you.");
+                    case "current": return "You\u2019re up to date. Checked " + Updater.Friendly(Updater.LastCheck) + "." + tail;
+                    case "error": return "Couldn\u2019t check for updates (" + Updater.Error + "). It tries again later." + tail;
+                }
+                return (Updater.Auto ? "Checks for updates a couple of minutes after it starts, then every few hours." : "Automatic updates are off.") + tail;
+            }
+        }
+        public string UpdateButtonText { get { return Updater.State == "ready" ? "Update now" : Updater.State == "checking" ? "Checking\u2026" : Updater.State == "updating" ? "Updating\u2026" : "Check for updates"; } }
+        public bool UpdateButtonEnabled { get { return Updater.State != "checking" && Updater.State != "updating"; } }
+        public ICommand UpdateCommand { get { return new Cmd(delegate { if (Updater.State == "ready") Updater.UpdateNow(); else Updater.CheckNow(); }); } }
+        public bool AutoUpdate { get { return Shell.Demo || Updater.Auto; } set { if (!Shell.Demo) Updater.Auto = value; RaiseAll(); } }
         public ICommand OpenWebsite { get { return new Cmd(delegate { Procs.Open(Program.Site); }); } }
         public ICommand OpenGitHub { get { return new Cmd(delegate { Procs.Open(Program.Repo); }); } }
         public ICommand OpenIssues { get { return new Cmd(delegate { Procs.Open(Program.Repo + "/issues"); }); } }
@@ -2892,6 +3164,7 @@ namespace UnlockedToolkit
 
             Listen(Program.ShowEventName, delegate { ShowSettings(null); });
             Listen(Program.ExitEventName, Quit);
+            Updater.Start();
 
             if (showSettings) ShowSettings(null);
         }

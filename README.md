@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkit.cmd"><b>Download the toolkit</b></a>
+  <a href="https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkitSetup.exe"><b>Download the toolkit</b></a>
   &nbsp;·&nbsp;
   <a href="https://2wanderingcrows.github.io/windows-unlocked-toolkit">Website</a>
   &nbsp;·&nbsp;
@@ -39,9 +39,10 @@ does one job, does it well, and then gets out of your way.
 
 |   |   |
 | --- | --- |
-| 🔒 **Private by design** | The tools never go online and never read what you type. Everything stays on your PC. |
+| 🔒 **Private by design** | The tools never read what you type and never send anything anywhere. The only thing that goes online is the update check, which downloads a short version list from this site (and you can turn it off). |
 | 📖 **Readable, not mysterious** | No hidden programs. Every tool is plain source code, built on your PC by the compiler that already ships with Windows. |
 | ↩️ **Undo anytime** | Every tool has its own uninstaller that puts things back the way they were. |
+| 🔄 **Always fresh** | New versions install themselves quietly in the background while you're away, and keep your settings. One switch turns that off. |
 | 🪶 **Light as a feather** | Small background helpers that start with Windows and don't need admin rights unless they say so. |
 | 🎁 **Actually free** | No account, no ads, no "upgrade to Pro". MIT licensed. |
 
@@ -133,20 +134,33 @@ Have an idea for a tool? [Open an issue](https://github.com/2wanderingcrows/wind
 
 ## Install in a minute
 
-1. **Download** [`WindowsUnlockedToolkit.cmd`](https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkit.cmd). It's one small file with every tool inside.
-2. **Double-click it.** If Windows says it's from an unknown publisher, choose **More info**, then **Run anyway**. (That warning appears for any file without a paid signing certificate.)
-3. **Pick your tools** from the menu. Run the file again any time and press **U** to uninstall one.
+1. **Download** [`WindowsUnlockedToolkitSetup.exe`](https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkitSetup.exe). It's one small app with every tool inside.
+2. **Open it.** If Windows says it "protected your PC", choose **More info**, then **Run anyway**. (That warning appears for any app without a paid signing certificate.)
+3. **Pick your tools and press Install.** That's it. No admin rights, no command window.
 
-**Prefer the terminal?** Paste this into PowerShell for the same menu:
+Open the setup again any time to add tools, or find **Windows Unlocked Toolkit**
+in **Settings > Apps** to change or remove them. Every version is also on the
+[Releases page](https://github.com/2wanderingcrows/windows-unlocked-toolkit/releases).
+
+**Updates are automatic.** The toolkit's tray app checks for new versions every
+few hours and installs them quietly when you've stepped away from your PC. Your
+settings stay as they are, tools you turned off stay off, and your custom
+controller buttons are kept. Turn it off in the tray app under
+**Updates and about > Update automatically**; it then only checks when you press
+**Check for updates**.
+
+**Prefer the terminal?** Paste this into PowerShell for a text menu:
 
 ```powershell
 irm https://2wanderingcrows.github.io/windows-unlocked-toolkit/install.ps1 | iex
 ```
 
+Or download [`WindowsUnlockedToolkit.cmd`](https://2wanderingcrows.github.io/windows-unlocked-toolkit/WindowsUnlockedToolkit.cmd), the same menu in a double-clickable file.
+
 **Want just one tool?** Open its folder under [`tools/`](tools), download it,
 and run its `Install.cmd`.
 
-The installer holds each tool's full source. The only thing it downloads is
+The setup holds each tool's full source. The only thing it downloads is
 AntiMicroX (with `winget`), and only if you pick Leanback Mode and don't have
 it yet. Some tools are built on your PC with the C# compiler that comes with
 Windows, so antivirus or Smart App Control may ask about them the first time.
@@ -158,15 +172,19 @@ Windows, so antivirus or Smart App Control may ask about them the first time.
 
 Everything is open source, so you (or a techy friend) can read exactly what
 each tool does. Nothing is pre-compiled: the tools are built from that source
-on your own PC. They don't connect to the internet, and they only use standard
-Windows features, like the accessibility tools screen readers rely on.
+on your own PC. The tools themselves don't connect to the internet, and they
+only use standard Windows features, like the accessibility tools screen readers
+rely on. The tray app's update check downloads two files from this project's
+website, `manifest.ini` (the version list) and, when there's an update,
+`install.ps1` (the same installer as above), and nothing else.
 </details>
 
 <details>
 <summary><b>How do I remove a tool?</b></summary>
 
-Run the installer again and press **U**, or open the tool's folder and
-double-click `Uninstall.cmd`. Settings it changed (like display scaling) go
+Open **Settings > Apps**, find **Windows Unlocked Toolkit** and choose
+**Uninstall** to pick what to remove. Or run the setup again and choose
+**Remove tools**, or open the tool's folder and double-click `Uninstall.cmd`. Settings it changed (like display scaling) go
 back to how they were.
 </details>
 
@@ -193,6 +211,11 @@ with the last few lines and it'll get looked at.
   [`scripts/build.py`](scripts/build.py), which packs every tool into one
   installer and rebuilds the website. Nobody edits the combined installer by
   hand, so it can't fall out of date.
+- The setup app ([`setup/`](setup)) is built on Windows by
+  [`scripts/build-setup.ps1`](scripts/build-setup.ps1) around that installer.
+  When a tool's version changes, the workflow also publishes a
+  [release](https://github.com/2wanderingcrows/windows-unlocked-toolkit/releases)
+  with it, and the website's `manifest.ini` tells installed tray apps to update.
 - The website is [`site/index.template.html`](site/index.template.html). Each
   tool's pitch on it (tagline, highlights, picture) comes from
   [`site/showcase.json`](site/showcase.json), and the pictures live in

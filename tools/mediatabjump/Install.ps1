@@ -39,14 +39,23 @@ try {
     if (-not (Test-Path -LiteralPath $exe)) { throw 'The build finished but MediaTabJump.exe was not created.' }
 
     Say '3/4  Setting it to start automatically when you sign in...'
-    Set-ItemProperty -Path $runKey -Name $AppName -Value ('"' + $exe + '"')
+    # If you turned Media Tab Jump off in the toolkit tray app, leave it off (updates included).
+    $parked = Join-Path $env:LOCALAPPDATA 'WindowsUnlockedToolkit\turned-off\MediaTabJump.run.txt'
+    if (Test-Path -LiteralPath $parked) {
+        [System.IO.File]::WriteAllText($parked, '"' + $exe + '"')
+        Say '     It is turned off in the toolkit, so it stays off. Turn it on from the toolkit when you want it.'
+    } else {
+        Set-ItemProperty -Path $runKey -Name $AppName -Value ('"' + $exe + '"')
+    }
 
     Say '4/4  Starting it...'
-    Start-Process -FilePath $exe
-    Start-Sleep -Seconds 2
+    if (-not (Test-Path -LiteralPath $parked)) {
+        Start-Process -FilePath $exe
+        Start-Sleep -Seconds 2
+    }
 
     Say ''
-    if (Get-Process -Name $AppName -ErrorAction SilentlyContinue) {
+    if ((Test-Path -LiteralPath $parked) -or (Get-Process -Name $AppName -ErrorAction SilentlyContinue)) {
         Say 'Done! Media Tab Jump is running in the background.' 'Green'
         Say ''
         Say 'Try it: play something in Edge, click the volume icon on the taskbar,'

@@ -296,7 +296,7 @@ namespace MediaTabJump
     public static class Program
     {
         private const string AppName = "MediaTabJump";
-        private const string Version = "7.3";
+        private const string Version = "7.4";
 
         // ---------------------------------------------------------------- Win32
 

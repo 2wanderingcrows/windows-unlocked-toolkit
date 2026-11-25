@@ -30,7 +30,7 @@ jobs:
         shell: pwsh
         run: |
           $bad = 0
-          $files = Get-ChildItem -Path tools, dist -Recurse -Filter *.ps1
+          $files = Get-ChildItem -Path tools, dist, scripts -Recurse -Filter *.ps1
           foreach ($f in $files) {
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
@@ -50,12 +50,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-unlocked-toolkit
-          path: dist/
-
-      - name: Package the website
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
-        with:
           path: dist/
 
   compile:
@@ -125,9 +119,39 @@ jobs:
           path: ${{ runner.temp }}/screenshots/
           if-no-files-found: ignore
 
+  setup:
+    # Builds WindowsUnlockedToolkitSetup.exe (the installer with buttons) around the installer the build job made.
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-unlocked-toolkit
+          path: dist/
+
+      - name: Build the setup app and render its screens (fails on layout or binding errors)
+        shell: powershell
+        run: ./scripts/build-setup.ps1 -SelfTest (Join-Path $env:RUNNER_TEMP 'setup-screens')
+
+      - name: Keep the setup app with this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup
+          path: dist/WindowsUnlockedToolkitSetup.exe
+
+      - name: Keep the screenshots with this run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-screenshots
+          path: ${{ runner.temp }}/setup-screens/
+          if-no-files-found: ignore
+
   deploy:
     if: github.event_name != 'pull_request'
-    needs: [build, compile]
+    needs: [build, compile, setup]
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -136,6 +160,73 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-unlocked-toolkit
+          path: dist/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: setup
+          path: dist/
+
+      - name: Package the website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
       - name: Publish to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  release:
+    # A GitHub Release with the setup app, whenever a tool's version changes on main.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, compile, setup]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-unlocked-toolkit
+          path: dist/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: setup
+          path: dist/
+
+      - name: Publish a release if any tool's version changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tr -d '\r' < dist/manifest.ini > manifest.txt
+          versions=$(grep -E '^[a-z0-9]+\.version=' manifest.txt | sort)
+          fp=$(printf '%s' "$versions" | sha256sum | cut -c1-12)
+          latest=$(gh release view --json body -q .body 2>/dev/null || true)
+          if printf '%s' "$latest" | grep -q "versions-fingerprint: $fp"; then
+            echo "No tool versions changed since the latest release; nothing to publish."
+            exit 0
+          fi
+          tag="v$(date -u +%Y.%m.%d).${GITHUB_RUN_NUMBER}"
+          {
+            echo "Download **WindowsUnlockedToolkitSetup.exe** below and open it. Pick your tools and press Install."
+            echo
+            echo "| Tool | Version |"
+            echo "| --- | --- |"
+            grep -E '^[a-z0-9]+\.name=' manifest.txt | while IFS='=' read -r key name; do
+              id=${key%.name}
+              ver=$(grep -E "^${id}\.version=" manifest.txt | cut -d= -f2-)
+              echo "| $name | $ver |"
+            done
+            echo
+            echo "Already have the toolkit? The tray app installs this update by itself (Updates and about > Update automatically)."
+            echo
+            echo "The setup app isn't code-signed yet, so Windows SmartScreen may say it \"protected your PC\". Choose **More info > Run anyway**. Everything it installs is the source code in this repository, built on your PC."
+            echo
+            echo "<!-- versions-fingerprint: $fp -->"
+          } > notes.md
+          gh release create "$tag" dist/WindowsUnlockedToolkitSetup.exe dist/install.ps1 dist/WindowsUnlockedToolkit.cmd \
+            --title "Windows Unlocked Toolkit $(date -u +%Y-%m-%d)" --notes-file notes.md --target "$GITHUB_SHA"

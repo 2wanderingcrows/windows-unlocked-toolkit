@@ -93,12 +93,24 @@ try {
     Write-Step 'Controller layout'
     New-Item -ItemType Directory -Force -Path (Split-Path $amxProfile -Parent) | Out-Null
     $newProfile = [IO.File]::ReadAllText((Join-Path $here 'controller-mouse.amgp'))
-    if ((Test-Path -LiteralPath $amxProfile) -and ([IO.File]::ReadAllText($amxProfile) -ne $newProfile)) {
-        Copy-Item -LiteralPath $amxProfile -Destination "$amxProfile.bak" -Force
-        Write-Info 'backed up your previous layout as controller-mouse.amgp.bak'
+    # A copy of the layout as it was last shipped, to tell your own changes (made in the toolkit
+    # tray app) from an older default. Your changes are kept; an untouched layout gets the new default.
+    $shipped = Join-Path $appDir 'controller-mouse.shipped.amgp'
+    New-Item -ItemType Directory -Force -Path $appDir | Out-Null
+    $current = if (Test-Path -LiteralPath $amxProfile) { [IO.File]::ReadAllText($amxProfile) } else { $null }
+    $lastShipped = if (Test-Path -LiteralPath $shipped) { [IO.File]::ReadAllText($shipped) } else { $null }
+    if ($null -ne $current -and $current -ne $newProfile -and $null -ne $lastShipped -and $current -ne $lastShipped) {
+        [IO.File]::WriteAllText("$amxProfile.new", $newProfile)
+        Write-Info 'kept your customized layout (the new default is saved next to it as controller-mouse.amgp.new)'
+    } else {
+        if ($null -ne $current -and $current -ne $newProfile) {
+            Copy-Item -LiteralPath $amxProfile -Destination "$amxProfile.bak" -Force
+            Write-Info 'backed up your previous layout as controller-mouse.amgp.bak'
+        }
+        [IO.File]::WriteAllText($amxProfile, $newProfile)
+        Write-Info 'installed controller-mouse.amgp'
     }
-    [IO.File]::WriteAllText($amxProfile, $newProfile)
-    Write-Info 'installed controller-mouse.amgp'
+    [IO.File]::WriteAllText($shipped, $newProfile)
     $amxSettings = Join-Path $amxDir 'antimicrox_settings.ini'
     if (Test-Path -LiteralPath $amxSettings) {
         Write-Info 'kept your existing AntiMicroX settings'
@@ -142,15 +154,26 @@ try {
     Write-Step 'Start at sign-in'
     $oldShortcut = Join-Path $startup 'Controller TV Mode.lnk'
     if (Test-Path -LiteralPath $oldShortcut) { Remove-Item -LiteralPath $oldShortcut -Force }
-    New-Shortcut (Join-Path $startup 'AntiMicroX (controller mouse).lnk') $amxExe "--tray --profile `"$amxProfile`"" 'Controller as mouse (AntiMicroX, tray only)'
-    New-Shortcut (Join-Path $startup 'Leanback Mode.lnk') $appExe '' 'Leanback mode while a game controller is on'
+    # Something you turned off in the toolkit tray app keeps its shortcut in its "turned-off"
+    # folder. It's refreshed there, so it stays off (updates included).
+    $parked = Join-Path $local 'WindowsUnlockedToolkit\turned-off'
+    $amxLnk = 'AntiMicroX (controller mouse).lnk'
+    $leanLnk = 'Leanback Mode.lnk'
+    $amxOff = Test-Path -LiteralPath (Join-Path $parked $amxLnk)
+    $leanOff = Test-Path -LiteralPath (Join-Path $parked $leanLnk)
+    $amxDest = if ($amxOff) { $parked } else { $startup }
+    $leanDest = if ($leanOff) { $parked } else { $startup }
+    New-Shortcut (Join-Path $amxDest $amxLnk) $amxExe "--tray --profile `"$amxProfile`"" 'Controller as mouse (AntiMicroX, tray only)'
+    New-Shortcut (Join-Path $leanDest $leanLnk) $appExe '' 'Leanback mode while a game controller is on'
+    if ($amxOff) { Write-Info 'the controller mouse is turned off in the toolkit, so it stays off' }
+    if ($leanOff) { Write-Info 'Leanback Mode is turned off in the toolkit, so it stays off' }
 
     if ($NoStart) {
         Write-Step 'Not starting the apps (-NoStart); they start at your next sign-in.'
     } else {
         Write-Step 'Starting'
-        Start-Process -FilePath $amxExe -ArgumentList '--tray', '--profile', "`"$amxProfile`"" -WorkingDirectory (Split-Path $amxExe -Parent)
-        Start-Process -FilePath $appExe -WorkingDirectory $appDir
+        if (-not $amxOff) { Start-Process -FilePath $amxExe -ArgumentList '--tray', '--profile', "`"$amxProfile`"" -WorkingDirectory (Split-Path $amxExe -Parent) }
+        if (-not $leanOff) { Start-Process -FilePath $appExe -WorkingDirectory $appDir }
         Write-Info 'AntiMicroX and Leanback Mode are running in the system tray.'
     }
 

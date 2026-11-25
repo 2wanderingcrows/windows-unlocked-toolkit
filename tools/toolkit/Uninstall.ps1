@@ -64,7 +64,8 @@ try {
     Remove-ItemProperty -Path $runKey -Name 'WindowsUnlockedToolkit' -ErrorAction SilentlyContinue
     $menuLink = Join-Path ([Environment]::GetFolderPath('Programs')) 'Windows Unlocked Toolkit.lnk'
     if (Test-Path -LiteralPath $menuLink) { Remove-Item -LiteralPath $menuLink -Force }
-    foreach ($p in $appDir, (Join-Path $dataDir 'settings.ini'), (Join-Path $dataDir 'log.txt'), (Join-Path $dataDir 'log.txt.old')) {
+    foreach ($p in $appDir, (Join-Path $dataDir 'settings.ini'), (Join-Path $dataDir 'log.txt'), (Join-Path $dataDir 'log.txt.old'),
+                (Join-Path $dataDir 'updates'), (Join-Path $dataDir 'update-log.txt'), (Join-Path $dataDir 'update-status.ini')) {
         if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force }
     }
     Write-Info 'done'

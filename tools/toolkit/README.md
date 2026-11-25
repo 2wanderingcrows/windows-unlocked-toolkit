@@ -20,7 +20,8 @@ One icon in the system tray for the whole toolkit.
   - **AutoZoom:** which apps it zooms, and how many steps each one gets when maximized and when not,
     on every screen or on one screen in particular.
   - **Appearance:** light or dark, an accent colour (or your Windows accent), and the tray icon's style.
-  - **Updates and about:** start with Windows, the website, source code and logs.
+  - **Updates and about:** check for updates, **Update automatically** (on by default),
+    start with Windows, the website, source code and logs.
 
 It shows settings for the tools you have installed; the others say "Not installed".
 
@@ -53,7 +54,17 @@ at sign-in, and Leanback Mode shows its own tray icon again.
   `%LOCALAPPDATA%\WindowsUnlockedToolkit\turned-off`, so it stays off after a
   restart. Turning it on puts the entry back.
 - While it runs, Leanback Mode hides its own tray icon so there's just one.
-- It never goes online. The website and GitHub buttons just open your browser.
+- **Automatic updates.** A couple of minutes after it starts, and then every few
+  hours, it downloads `manifest.ini` from the toolkit's website: a short list of
+  each tool's newest version. If a tool you have is newer there, it waits until
+  you've been away from the PC for 10 minutes, downloads `install.ps1` from the
+  same website and runs it hidden. That reinstalls only the tools that changed,
+  keeps their settings, leaves tools you turned off turned off, and keeps
+  controller buttons you changed. Updating the tray app itself restarts it.
+  The last run is logged in `update-log.txt` next to `log.txt`.
+- Turn off **Update automatically** and it never goes online by itself; it only
+  checks when you press **Check for updates**. The website and GitHub buttons
+  just open your browser.
 - It's built on your PC from `WindowsUnlockedToolkit.cs` and the `.xaml`
   layout files (readable source) with the C# compiler that comes with Windows.
   No admin rights needed.

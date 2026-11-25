@@ -9,6 +9,8 @@
     3. Starts it and opens the settings window.
 
     Safe to re-run: it replaces the app and keeps your settings.
+    When the setup app or an automatic update runs it (WUT_QUIET=1), it starts the app in the
+    tray without opening the settings window, and leaves "Start with Windows" as you set it.
 
 .PARAMETER NoStart
     Install but don't start it now.
@@ -31,6 +33,8 @@ if (-not (Test-Path -LiteralPath (Join-Path $fw 'csc.exe'))) { $fw = Join-Path $
 $csc     = Join-Path $fw 'csc.exe'
 $wpf     = Join-Path $fw 'WPF'
 $sources = 'WindowsUnlockedToolkit.cs', 'Theme.xaml', 'MainWindow.xaml', 'Flyout.xaml'
+$quiet   = $env:WUT_QUIET -eq '1'
+$hadApp  = Test-Path -LiteralPath $exe
 
 function Write-Step([string]$text) { Write-Host "==> $text" -ForegroundColor Cyan }
 function Write-Info([string]$text) { Write-Host "    $text" }
@@ -74,8 +78,13 @@ try {
 
     Write-Step 'Start at sign-in'
     if (-not (Test-Path $runKey)) { New-Item -Path $runKey -Force | Out-Null }
-    Set-ItemProperty -Path $runKey -Name 'WindowsUnlockedToolkit' -Value ('"' + $exe + '"')
-    Write-Info 'added (turn it off any time in the app: Updates and about > Start with Windows)'
+    $hadRun = $null -ne (Get-ItemProperty -Path $runKey -Name 'WindowsUnlockedToolkit' -ErrorAction SilentlyContinue)
+    if ($quiet -and $hadApp -and -not $hadRun) {
+        Write-Info 'left off, as you set it in the app'
+    } else {
+        Set-ItemProperty -Path $runKey -Name 'WindowsUnlockedToolkit' -Value ('"' + $exe + '"')
+        Write-Info 'added (turn it off any time in the app: Updates and about > Start with Windows)'
+    }
     $menuLink = Join-Path ([Environment]::GetFolderPath('Programs')) 'Windows Unlocked Toolkit.lnk'
     $lnk = (New-Object -ComObject WScript.Shell).CreateShortcut($menuLink)
     $lnk.TargetPath = $exe
@@ -89,7 +98,8 @@ try {
         Write-Step 'Not starting it now (-NoStart); it starts at your next sign-in.'
     } else {
         Write-Step 'Starting'
-        Start-Process -FilePath $exe -ArgumentList '--settings' -WorkingDirectory $appDir
+        if ($quiet) { Start-Process -FilePath $exe -WorkingDirectory $appDir }
+        else { Start-Process -FilePath $exe -ArgumentList '--settings' -WorkingDirectory $appDir }
         Write-Info 'The toolkit is in the system tray (click the ^ arrow next to the clock if you do not see it).'
     }
 
