@@ -371,7 +371,7 @@ namespace LeanbackMode
             sb.AppendLine("# second set) and tilt the right stick: up / down changes the volume, the further the faster (VolumeSpeed =");
             sb.AppendLine("# percent per second at full tilt); left / right flips through open windows, and letting go picks one.");
             sb.AppendLine("# A quick tap of the button presses LayerTap instead: a key or combo such as Space, Ctrl+Shift+T, MediaPlayPause,");
-            sb.AppendLine("# BrowserBack or LeftClick (Windows Forms key names). Turn the layer on or off in the toolkit app.");
+            sb.AppendLine("# BrowserBack or LeftClick (Windows Forms key names), or Run:C:\\path\\to\\app.exe to open an app.");
             sb.AppendLine("LayerTap=" + LayerTap);
             sb.AppendLine("VolumeSpeed=" + VolumeSpeed);
             sb.AppendLine("#");
@@ -1560,6 +1560,14 @@ namespace LeanbackMode
 
         public static void Combo(string combo)
         {
+            string c = (combo ?? "").Trim();
+            if (c.StartsWith("Run:", StringComparison.OrdinalIgnoreCase))
+            {
+                // Open an app (set from the toolkit app's "Open an app..." choice).
+                try { var proc = Process.Start(new ProcessStartInfo(c.Substring(4).Trim()) { UseShellExecute = true }); if (proc != null) proc.Dispose(); }
+                catch (Exception ex) { Log.Write("controller layer: couldn't open " + c.Substring(4).Trim() + ": " + ex.Message); }
+                return;
+            }
             var keys = new List<Keys>();
             foreach (var t in Parse(combo))
             {

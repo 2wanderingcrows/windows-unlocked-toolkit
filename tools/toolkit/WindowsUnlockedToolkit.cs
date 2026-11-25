@@ -60,7 +60,7 @@ namespace UnlockedToolkit
 
     static class Program
     {
-        public const string Version = "1.5";
+        public const string Version = "1.6";
         public const string Site = "https://2wanderingcrows.github.io/windows-unlocked-toolkit/";
         public const string Repo = "https://github.com/2wanderingcrows/windows-unlocked-toolkit";
         public const string ShowEventName = "Local\\WindowsUnlockedToolkit_Show";
@@ -943,9 +943,27 @@ namespace UnlockedToolkit
             return a != null && a.Mode == "keyboard" ? Codes(a.Code) : new List<long>();
         }
 
+        // "app:C:\path\Program.exe" -> the app's own name ("Playnite"), else the file name.
+        public static string AppName(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    var v = FileVersionInfo.GetVersionInfo(path);
+                    string n = (v.FileDescription ?? "").Trim();
+                    if (n.Length == 0) n = (v.ProductName ?? "").Trim();
+                    if (n.Length > 0 && n.Length <= 40) return n;
+                }
+            }
+            catch { }
+            return Path.GetFileNameWithoutExtension(path ?? "");
+        }
+
         public static string Label(string id)
         {
             if (id == "custom") return "Custom";
+            if (id != null && id.StartsWith("app:")) return "Open " + AppName(id.Substring(4));
             if (id != null && id.StartsWith("combo:"))
             {
                 var names = new List<string>();
@@ -966,8 +984,14 @@ namespace UnlockedToolkit
             {
                 var mode = slot.SelectSingleNode("mode");
                 var code = slot.SelectSingleNode("code");
-                if (mode == null || code == null) return "custom";
+                if (mode == null) return "custom";
                 string md = mode.InnerText.Trim();
+                if (list.Count == 1 && md == "execute")
+                {
+                    var path = slot.SelectSingleNode("path");
+                    return path != null && path.InnerText.Trim().Length > 0 ? "app:" + path.InnerText.Trim() : "custom";
+                }
+                if (code == null) return "custom";
                 if (list.Count == 1 && md != "keyboard")
                 {
                     foreach (var a in Actions)
@@ -1045,6 +1069,15 @@ namespace UnlockedToolkit
             var slots = Slots(setIndex, where, true);
             if (slots == null) return;
             slots.RemoveAll();
+            if (id.StartsWith("app:"))
+            {
+                // AntiMicroX starts the program itself when the button is pressed.
+                var slot = MakeSlot("0", "execute");
+                var path = doc.CreateElement("path"); path.InnerText = id.Substring(4);
+                slot.InsertBefore(path, slot.SelectSingleNode("mode"));
+                slots.AppendChild(slot);
+                return;
+            }
             var a = Find(id);
             if (a != null && a.Mode.Length > 0 && a.Mode != "keyboard") { slots.AppendChild(MakeSlot(a.Code, a.Mode)); return; }
             foreach (var c in QtKeys.Sort(KeysOf(id))) slots.AppendChild(MakeSlot(QtKeys.Hex(c), "keyboard"));
@@ -1436,6 +1469,27 @@ namespace UnlockedToolkit
             record.Header = "Record a key combo\u2026";
             record.Click += delegate { owner.StartRecording(this); };
             menu.Items.Add(record);
+            if (current != null && current.StartsWith("app:"))
+            {
+                var mineApp = new MenuItem();
+                mineApp.Header = MouseLayout.Label(current);
+                mineApp.IsCheckable = true;
+                mineApp.IsChecked = true;
+                menu.Items.Insert(0, mineApp);
+            }
+            foreach (var sug in LeanVm.SuggestedApps())
+            {
+                if (current == "app:" + sug) continue;
+                var item = new MenuItem();
+                item.Header = "Open " + MouseLayout.AppName(sug);
+                string id = "app:" + sug;
+                item.Click += delegate { owner.SetAction(Button, Set, id); };
+                menu.Items.Add(item);
+            }
+            var openApp = new MenuItem();
+            openApp.Header = "Open an app\u2026";
+            openApp.Click += delegate { owner.PickApp(Button, Set); };
+            menu.Items.Add(openApp);
             menu.Items.Add(new Separator());
             foreach (var a in MouseLayout.Actions)
             {
@@ -1874,8 +1928,37 @@ namespace UnlockedToolkit
         string TapId { get { return TapToId(C("LayerTap", "Space")); } }
 
         // Leanback Mode presses the layer button's tap itself, so it's kept in its settings as key names ("Ctrl+Shift+T").
+        // Apps people often want on a controller button, when they're installed.
+        public static List<string> SuggestedApps()
+        {
+            var list = new List<string>();
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            string[] candidates =
+            {
+                Path.Combine(local, @"Playnite\Playnite.FullscreenApp.exe"),
+                Path.Combine(pf, @"Playnite\Playnite.FullscreenApp.exe"),
+                Path.Combine(pf86, @"Steam\steam.exe"),
+                Path.Combine(pf, @"Kodi\kodi.exe")
+            };
+            foreach (var c in candidates) if (File.Exists(c) && !list.Contains(c)) list.Add(c);
+            return list;
+        }
+
+        public void PickApp(string button, int set)
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog();
+            dlg.Title = "Choose an app for the " + button + " button";
+            dlg.Filter = "Apps (*.exe)|*.exe";
+            dlg.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            dlg.DereferenceLinks = true; // picking a shortcut gives the app it points to
+            if (dlg.ShowDialog() == true) SetAction(button, set, "app:" + dlg.FileName);
+        }
+
         public static string TapText(string id)
         {
+            if (id != null && id.StartsWith("app:")) return "Run:" + id.Substring(4);
             if (id == "left") return "LeftClick";
             if (id == "right") return "RightClick";
             if (id == "middle") return "MiddleClick";
@@ -1886,6 +1969,7 @@ namespace UnlockedToolkit
 
         public static string TapToId(string tap)
         {
+            if (tap != null && tap.Trim().StartsWith("Run:", StringComparison.OrdinalIgnoreCase)) return "app:" + tap.Trim().Substring(4).Trim();
             string t = (tap ?? "").Trim().ToLowerInvariant();
             if (t == "leftclick") return "left";
             if (t == "rightclick") return "right";
@@ -3745,6 +3829,9 @@ namespace UnlockedToolkit
             var e = QtKeys.ByKey(WF.Keys.OemMinus);
             expect(e != null && e.Qt == 0x2d, "minus key");
 
+            string notepad = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "notepad.exe");
+            expect(LeanVm.TapToId(LeanVm.TapText("app:" + notepad)) == "app:" + notepad, "app tap text reads back");
+            m.Map["Start"] = "app:" + notepad;
             m.Map["X"] = ctrlK;
             m.Map2["Back"] = "alttab";
             m.Map["LT"] = "space"; m.Map2["LT"] = "space";
@@ -3754,6 +3841,8 @@ namespace UnlockedToolkit
             var r = MouseLayout.Load(copy);
             expect(r.Found, "copy loads" + (r.Error != null ? ": " + r.Error : ""));
             expect(r.LayerButton == "RB", "layer moved to RB (got " + (r.LayerButton ?? "none") + ")");
+            expect(r.Get(1, "Start") == "app:" + notepad, "Start opens Notepad (got " + r.Get(1, "Start") + ")");
+            expect(MouseLayout.Label(r.Get(1, "Start")).StartsWith("Open "), "app label (got " + MouseLayout.Label(r.Get(1, "Start")) + ")");
             expect(r.Get(1, "X") == ctrlK, "X keeps Ctrl+K (got " + r.Get(1, "X") + ")");
             expect(r.Get(2, "Back") == "alttab", "Back while holding is Alt+Tab (got " + r.Get(2, "Back") + ")");
             expect(r.Get(1, "LT") == "space", "LT is Space again (got " + r.Get(1, "LT") + ")");
