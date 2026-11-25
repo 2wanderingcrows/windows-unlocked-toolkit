@@ -111,6 +111,16 @@ TV on and it gets the Leanback size within a couple of seconds.
 | Back / Select | Refresh |
 | Left stick click | Middle click |
 | Right stick click | F11 (full screen) |
+| Home | Nothing by default (pick an action or an app in the toolkit app) |
+
+Every button can be changed in the toolkit app, including Home and each D-pad
+direction. Extra buttons, like back paddles, show up there when your controller
+reports them to Windows. Some pads in Xbox (X-input) mode keep their extra
+buttons to themselves. For an 8BitDo pad, assign L4/R4 to another button in
+8BitDo Ultimate Software, or switch the pad to a mode that reports them.
+
+If the Home button opens the Xbox Game Bar, turn that off: press Win+G, open
+Settings, and untick "Open Game Bar using this button on a controller".
 
 > **Tip: hold Y for the fast pointer.** On a TV or an ultrawide monitor the
 > pointer has a long way to travel. Hold **Y** and it moves about three times as
