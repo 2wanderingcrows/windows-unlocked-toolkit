@@ -12,6 +12,13 @@
 # that tool's own installer runs from there. You can read each tool's source
 # in the repo above before running this. The only download any tool makes is
 # Leanback Mode installing AntiMicroX with winget, if it isn't already there.
+#
+# Run it with no settings for a menu. The setup app (WindowsUnlockedToolkitSetup.exe)
+# and the tray app's automatic updates run it without the menu, using:
+#   WUT_MODE   install | uninstall | update
+#   WUT_TOOLS  tool ids, like leanback,toolkit (install and uninstall)
+# "update" reinstalls each tool that is installed and has a newer version in
+# this file. It skips tools that need administrator rights.
 
 & {
 $ErrorActionPreference = 'Stop'
@@ -19,6 +26,8 @@ $ToolkitName  = 'Windows Unlocked Toolkit'
 $ToolkitBuild = '__BUILD__'
 $RepoUrl      = '__REPO_URL__'
 $Root         = Join-Path $env:LOCALAPPDATA 'WindowsUnlockedToolkit'
+$VersionFile  = Join-Path $Root 'installed.ini'
+$StatusFile   = Join-Path $Root 'update-status.ini'
 $WinPS        = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 
 $Tools = @(
@@ -26,10 +35,41 @@ __TOOLS__
 )
 
 function Say([string]$Text = '', [string]$Color = 'Gray') { Write-Host $Text -ForegroundColor $Color }
+# Lines the setup app reads to show progress. They look like:  ##WUT begin leanback
+function Mark([string]$Text) { if ($quiet) { Write-Host "##WUT $Text" } }
 
 function Test-Admin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
     return (New-Object Security.Principal.WindowsPrincipal $id).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# installed.ini: one line per tool this installer put on the PC, like  leanback=1.3
+function Get-InstalledVersions {
+    $d = @{}
+    if (Test-Path -LiteralPath $VersionFile) {
+        foreach ($line in [IO.File]::ReadAllLines($VersionFile)) {
+            $i = $line.IndexOf('=')
+            if ($i -gt 0) { $d[$line.Substring(0, $i).Trim()] = $line.Substring($i + 1).Trim() }
+        }
+    }
+    return $d
+}
+
+function Set-InstalledVersion([string]$Id, [string]$Version) {
+    $d = Get-InstalledVersions
+    if ($Version) { $d[$Id] = $Version } else { $d.Remove($Id) }
+    New-Item -ItemType Directory -Force -Path $Root | Out-Null
+    $lines = @('# Tools installed by the Windows Unlocked Toolkit installer, and their versions.')
+    foreach ($k in ($d.Keys | Sort-Object)) { $lines += "$k=$($d[$k])" }
+    [IO.File]::WriteAllLines($VersionFile, [string[]]$lines)
+}
+
+# The version on this PC: from installed.ini, or "?" when the tool is there but was
+# installed before versions were recorded. $null when it isn't installed.
+function Get-ToolVersion($Tool, $Known) {
+    if ($Known.ContainsKey($Tool.Id)) { return $Known[$Tool.Id] }
+    if ($Tool.Detect -and (Test-Path -LiteralPath ([Environment]::ExpandEnvironmentVariables($Tool.Detect)))) { return '?' }
+    return $null
 }
 
 function Expand-Tool($Tool) {
@@ -53,7 +93,7 @@ function Invoke-ToolScript($Tool, [string]$Dir, [string]$Script) {
         $p = Start-Process -FilePath $WinPS -ArgumentList $psArgs -Verb RunAs -Wait -PassThru
         return $p.ExitCode
     }
-    & $WinPS -NoProfile -ExecutionPolicy Bypass -File $file | Out-Host
+    & $WinPS -NoProfile -ExecutionPolicy Bypass -File $file 2>&1 | Out-Host
     return $LASTEXITCODE
 }
 
@@ -67,63 +107,151 @@ function Get-Picks([string]$Answer) {
     return @($picks | Select-Object -Unique)
 }
 
+function Get-PicksById([string]$List) {
+    $want = @($List -split '[,;\s]+' | Where-Object { $_ } | ForEach-Object { $_.ToLowerInvariant() })
+    $picks = @()
+    for ($i = 0; $i -lt $Tools.Count; $i++) {
+        if ($want -contains $Tools[$i].Id -or $want -contains 'all') { $picks += ($i + 1) }
+    }
+    return $picks
+}
+
 if ($env:OS -ne 'Windows_NT') { Say 'This toolkit only works on Windows.' 'Red'; return }
 
-Say
-Say $ToolkitName 'Cyan'
-Say "Build $ToolkitBuild"
-Say "Source code: $RepoUrl"
-Say
-for ($i = 0; $i -lt $Tools.Count; $i++) {
-    $t = $Tools[$i]
-    Say ("  [{0}] {1}  (v{2})" -f ($i + 1), $t.Name, $t.Version) 'White'
-    Say ("      " + $t.Summary)
-}
-Say
-Say '  [A] Install everything'
-Say '  [U] Uninstall something'
-Say '  [Q] Quit'
-Say
+$mode = ([string]$env:WUT_MODE).Trim().ToLowerInvariant()
+$quiet = $mode -ne ''
+if ($quiet) { $env:WUT_QUIET = '1' } # tools' installers then skip opening windows when they finish
 
-$mode = 'install'
-$choice = (Read-Host 'Type the numbers to install (like 1 or 1,2), or A, U, or Q').Trim()
-if ($choice -match '^[Qq]?$') { Say 'Nothing installed.'; return }
-if ($choice -match '^[Uu]$') {
-    $mode = 'uninstall'
-    $picks = Get-Picks (Read-Host 'Type the numbers to uninstall (like 1 or 1,2), or A for all').Trim()
+# One install at a time (the setup app, an automatic update and this menu could overlap).
+$lock = New-Object Threading.Mutex($false, 'Local\WindowsUnlockedToolkitInstaller')
+$haveLock = $false
+try { $haveLock = $lock.WaitOne([TimeSpan]::FromMinutes(10)) } catch [Threading.AbandonedMutexException] { $haveLock = $true }
+if (-not $haveLock) { Say 'Another toolkit install is still running. Try again in a few minutes.' 'Yellow'; Mark 'done fail'; return }
+
+try {
+$known = Get-InstalledVersions
+
+if ($mode -eq 'update') {
+    $picks = @()
+    for ($i = 0; $i -lt $Tools.Count; $i++) {
+        $t = $Tools[$i]
+        $have = Get-ToolVersion $t $known
+        if ($null -eq $have -or $have -eq $t.Version) { continue }
+        if ($t.Admin -and -not (Test-Admin)) { Say "Skipping $($t.Name): it needs administrator rights, so it updates when you run the installer."; continue }
+        $picks += ($i + 1)
+    }
+    $stamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss', [Globalization.CultureInfo]::InvariantCulture)
+    if ($picks.Count -eq 0) {
+        Say 'Everything is up to date.'
+        New-Item -ItemType Directory -Force -Path $Root | Out-Null
+        [IO.File]::WriteAllLines($StatusFile, [string[]]@("Checked=$stamp", "Build=$ToolkitBuild", 'Result=current', 'Updated='))
+        Mark 'done ok'
+        return
+    }
+    $mode = 'install'
+    $isUpdate = $true
 }
-else { $picks = Get-Picks $choice }
-if ($picks.Count -eq 0) { Say "That didn't match any tool. Nothing changed." 'Yellow'; return }
+elseif ($mode -eq 'install' -or $mode -eq 'uninstall') {
+    $picks = Get-PicksById ([string]$env:WUT_TOOLS)
+    $isUpdate = $false
+}
+elseif ($mode -ne '') {
+    Say "Unknown WUT_MODE '$mode'. Use install, uninstall or update." 'Red'
+    Mark 'done fail'
+    return
+}
+else {
+    $isUpdate = $false
+    Say
+    Say $ToolkitName 'Cyan'
+    Say "Build $ToolkitBuild"
+    Say "Source code: $RepoUrl"
+    Say
+    for ($i = 0; $i -lt $Tools.Count; $i++) {
+        $t = $Tools[$i]
+        $have = Get-ToolVersion $t $known
+        $note = ''
+        if ($have -eq $t.Version) { $note = '  installed' }
+        elseif ($null -ne $have) { $note = '  update available' }
+        Say ("  [{0}] {1}  (v{2}){3}" -f ($i + 1), $t.Name, $t.Version, $note) 'White'
+        Say ("      " + $t.Summary)
+    }
+    Say
+    Say '  [A] Install everything'
+    Say '  [U] Uninstall something'
+    Say '  [Q] Quit'
+    Say
+    Say 'Tip: WindowsUnlockedToolkitSetup.exe on the website does the same thing with buttons.' 'DarkGray'
+    Say
+
+    $mode = 'install'
+    $choice = (Read-Host 'Type the numbers to install (like 1 or 1,2), or A, U, or Q').Trim()
+    if ($choice -match '^[Qq]?$') { Say 'Nothing installed.'; return }
+    if ($choice -match '^[Uu]$') {
+        $mode = 'uninstall'
+        $picks = Get-Picks (Read-Host 'Type the numbers to uninstall (like 1 or 1,2), or A for all').Trim()
+    }
+    else { $picks = Get-Picks $choice }
+}
+if ($picks.Count -eq 0) { Say "That didn't match any tool. Nothing changed." 'Yellow'; Mark 'done fail'; return }
 
 $failed = @()
+$done = @()
 foreach ($n in $picks) {
     $t = $Tools[$n - 1]
     Say
     $verb = if ($mode -eq 'install') { 'Installing' } else { 'Uninstalling' }
     Say ("=== {0} {1} (v{2})" -f $verb, $t.Name, $t.Version) 'Cyan'
+    Mark "begin $($t.Id)"
+    $ok = $false
     try {
-        $dir = Expand-Tool $t
-        $script = if ($mode -eq 'install') { $t.Install } else { $t.Uninstall }
-        $code = Invoke-ToolScript $t $dir $script
-        if ($mode -eq 'uninstall') { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
-        if ($null -ne $code -and $code -ne 0) { $failed += $t.Name }
+        if ($mode -eq 'install') {
+            $dir = Expand-Tool $t
+            $code = Invoke-ToolScript $t $dir $t.Install
+            $ok = ($null -eq $code -or $code -eq 0)
+            if ($ok) { Set-InstalledVersion $t.Id $t.Version }
+        }
+        else {
+            # Prefer the uninstaller that came with the installed version.
+            $dir = Join-Path $Root $t.Id
+            if (-not (Test-Path -LiteralPath (Join-Path $dir $t.Uninstall))) { $dir = Expand-Tool $t }
+            $code = Invoke-ToolScript $t $dir $t.Uninstall
+            $ok = ($null -eq $code -or $code -eq 0)
+            Set-InstalledVersion $t.Id $null
+            Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
     catch {
         Say ("  Something went wrong: " + $_.Exception.Message) 'Red'
-        $failed += $t.Name
     }
+    if ($ok) { $done += ("{0} {1}" -f $t.Name, $t.Version); Mark "end $($t.Id) ok" }
+    else { $failed += $t.Name; Mark "end $($t.Id) fail" }
+}
+
+if ($isUpdate) {
+    $stamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss', [Globalization.CultureInfo]::InvariantCulture)
+    $result = if ($failed.Count -gt 0) { 'failed' } else { 'updated' }
+    [IO.File]::WriteAllLines($StatusFile, [string[]]@("Checked=$stamp", "Build=$ToolkitBuild", "Result=$result",
+        ('Updated=' + ($done -join ', ')), ('Failed=' + ($failed -join ', '))))
 }
 
 Say
 if ($failed.Count -gt 0) {
     Say ("Finished, but these had problems: " + ($failed -join ', ')) 'Yellow'
     Say "See the messages above, or ask for help at $RepoUrl/issues"
+    Mark 'done fail'
 }
 else {
     Say 'All done!' 'Green'
-    if ($mode -eq 'install') {
+    if ($mode -eq 'install' -and -not $quiet) {
         Say "Each tool's files (including its uninstaller) are in $Root"
         Say 'Run this installer again and choose U to remove a tool.'
     }
+    Mark 'done ok'
+}
+}
+finally {
+    $lock.ReleaseMutex()
+    $lock.Dispose()
 }
 }

@@ -44,6 +44,12 @@ system tray.
 If you used the older **Controller TV Mode**, installing Leanback Mode
 replaces it and keeps your settings.
 
+Installing again (or an automatic update from the toolkit) keeps your settings.
+If you changed controller buttons in the toolkit app, your layout is kept too,
+and the new default layout is saved next to it as `controller-mouse.amgp.new`.
+If you turned Leanback Mode or the controller mouse off in the toolkit app,
+it stays off.
+
 ## Use
 
 | You do | What happens |

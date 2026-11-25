@@ -655,8 +655,14 @@
             <StackPanel>
               <Border Style="{StaticResource RowFirst}">
                 <DockPanel>
-                  <Button DockPanel.Dock="Right" Style="{StaticResource Primary}" Content="Get the latest version" Command="{Binding OpenWebsite}" VerticalAlignment="Center"/>
+                  <Button DockPanel.Dock="Right" Style="{StaticResource Primary}" Content="{Binding UpdateButtonText}" Command="{Binding UpdateCommand}" IsEnabled="{Binding UpdateButtonEnabled}" VerticalAlignment="Center"/>
                   <StackPanel Margin="0,0,16,0"><TextBlock Text="{Binding VersionTitle}" Style="{StaticResource CardTitle}"/><TextBlock Text="{Binding VersionHint}" Style="{StaticResource Hint}"/></StackPanel>
+                </DockPanel>
+              </Border>
+              <Border Style="{StaticResource Row}">
+                <DockPanel>
+                  <CheckBox DockPanel.Dock="Right" Style="{StaticResource Switch}" IsChecked="{Binding AutoUpdate, Mode=TwoWay}" AutomationProperties.Name="Update automatically"/>
+                  <StackPanel Margin="0,0,12,0"><TextBlock Text="Update automatically" Style="{StaticResource Label}"/><TextBlock Text="Installs new versions quietly while you&#x2019;re away from your PC. Your settings stay as they are. Turn it off and the toolkit only goes online when you press Check for updates." Style="{StaticResource Hint}"/></StackPanel>
                 </DockPanel>
               </Border>
               <Border Style="{StaticResource Row}">
@@ -667,6 +673,7 @@
               </Border>
               <Border Style="{StaticResource Row}">
                 <WrapPanel>
+                  <Button Style="{StaticResource Secondary}" Content="Website" Command="{Binding OpenWebsite}" Margin="0,0,10,0"/>
                   <Button Style="{StaticResource Secondary}" Content="View source on GitHub" Command="{Binding OpenGitHub}" Margin="0,0,10,0"/>
                   <Button Style="{StaticResource Secondary}" Content="Report a problem" Command="{Binding OpenIssues}" Margin="0,0,10,0"/>
                   <Button Style="{StaticResource Secondary}" Content="Open logs folder" Command="{Binding OpenLogs}"/>

@@ -31,16 +31,25 @@ Create `tools/<id>/` (lowercase id, no spaces) with:
     "summary": "One sentence, plain ASCII, shown in the installer menu and on the website.",
     "install": "Install.ps1",
     "uninstall": "Uninstall.ps1",
+    "detect": "%LOCALAPPDATA%\\<App>\\<App>.exe",
     "admin": false,
     "order": 100
   }
   ```
   `admin: true` makes the combined installer ask Windows for administrator
-  rights before running that tool's installer. Lower `order` sorts first.
+  rights before running that tool's installer (automatic updates skip such
+  tools). Lower `order` sorts first. `detect` is a file that exists when the
+  tool is installed; updates use it to find copies installed before versions
+  were recorded in `installed.ini`.
 - `Install.ps1` and `Uninstall.ps1`. They run under Windows PowerShell 5.1
   (`powershell.exe`, not `pwsh`), from inside the tool's folder, with no
   arguments. Find sibling files with `Split-Path -Parent $MyInvocation.MyCommand.Path`.
   Exit with a non-zero code on failure. Keep them ASCII.
+  They must be safe to re-run silently, because automatic updates re-run them
+  in a hidden window: never prompt (no `Read-Host`, no `pause`), keep the
+  user's settings, and if the tool was turned off in the tray app (its startup
+  entry is in `%LOCALAPPDATA%\WindowsUnlockedToolkit\turned-off`), keep it off.
+  When `WUT_QUIET=1` is set (setup app and updates), don't open windows.
 - `Install.cmd` and `Uninstall.cmd` wrappers so the folder works on its own.
 - `README.md` written for a non-technical user: what it does, install, use,
   remove, privacy (what it watches, whether it goes online), troubleshooting.
@@ -59,3 +68,13 @@ test media).
 This repo is public. Don't commit personal paths, usernames, logs, account
 names, or settings that only make sense on Max's PC. Use `%LOCALAPPDATA%`,
 `$env:USERPROFILE`, and similar instead of `C:\Users\<name>`.
+
+## Setup app and automatic updates
+
+- `setup/` holds the setup app (`WindowsUnlockedToolkitSetup.exe`, WPF, C# 5).
+  `scripts/build-setup.ps1` compiles it on Windows around `dist/install.ps1`
+  and `dist/manifest.ini`; CI publishes it to the website and, when a tool's
+  version changes on `main`, to a GitHub Release.
+- Installed tray apps read `manifest.ini` from the website and update any tool
+  whose `version` differs from the one on the PC. So bumping `version` is what
+  ships a change to everyone: bump it only once the change is ready.

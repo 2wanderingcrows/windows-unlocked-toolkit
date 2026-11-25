@@ -193,13 +193,13 @@
     <h1>The little Windows fixes<br><span class="grad">you've been missing.</span></h1>
     <p class="lede">Windows Unlocked is a growing set of tiny, friendly tools that smooth out the everyday annoyances. Pick the ones you like, skip the rest, and remove any of them in a click.</p>
     <div class="cta">
-      <a class="btn" href="WindowsUnlockedToolkit.cmd" download>
+      <a class="btn" href="WindowsUnlockedToolkitSetup.exe" download>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
         Download the toolkit
       </a>
       <a class="btn ghost" href="#tools">See what's inside</a>
     </div>
-    <p class="fine">One small file · {{TOOL_COUNT}} tools and counting · no account, no ads, no tracking</p>
+    <p class="fine">One small app · {{TOOL_COUNT}} tools and counting · updates itself · no account, no ads, no tracking</p>
     <!-- MOCKUP: the hero image is concept art of the coming tray app. Replace site/assets/hero.svg with a real screenshot when it ships. -->
     <div class="hero-shot"><img src="assets/hero.svg" alt="A Windows desktop with the Windows Unlocked tray panel open, showing a section for each tool with toggles, a pointer speed slider and glow colors" width="1200" height="680"></div>
   </div>
@@ -215,7 +215,7 @@
       <div class="promise">
         <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></div>
         <h3>Private by design</h3>
-        <p>The tools never go online and never read what you type. Everything stays on your PC.</p>
+        <p>The tools never read what you type and never send anything anywhere. The only thing that goes online is the update check, and you can switch it off.</p>
       </div>
       <div class="promise">
         <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l-6 6 6 6M16 6l6 6-6 6"/></svg></div>
@@ -259,17 +259,17 @@
   <div class="wrap">
     <div class="head">
       <h2>Up and running in a minute.</h2>
-      <p>One file holds every tool. Run it, tick what you want, done.</p>
+      <p>One small app holds every tool. Open it, switch on what you want, press Install. From then on it keeps itself up to date.</p>
     </div>
     <div class="steps">
-      <div class="step"><h3>Download</h3><p><a href="WindowsUnlockedToolkit.cmd" download>WindowsUnlockedToolkit.cmd</a> is one small file with every tool inside.</p></div>
-      <div class="step"><h3>Double-click it</h3><p>If Windows says it's from an unknown publisher, choose <b>More info</b>, then <b>Run anyway</b>.</p></div>
-      <div class="step"><h3>Pick your tools</h3><p>Choose from the menu. Run the file again any time and press <b>U</b> to uninstall one.</p></div>
+      <div class="step"><h3>Download</h3><p><a href="WindowsUnlockedToolkitSetup.exe" download>WindowsUnlockedToolkitSetup.exe</a> is one small app with every tool inside.</p></div>
+      <div class="step"><h3>Open it</h3><p>If Windows says it "protected your PC", choose <b>More info</b>, then <b>Run anyway</b>. No admin rights needed.</p></div>
+      <div class="step"><h3>Pick and install</h3><p>Switch on the tools you want and press <b>Install</b>. New versions then install themselves quietly while you're away.</p></div>
     </div>
     <div class="alt">
       <div>
         <h3>Prefer the terminal?</h3>
-        <p>Paste this into PowerShell for the same menu:</p>
+        <p>Paste this into PowerShell for a text menu, or grab <a href="WindowsUnlockedToolkit.cmd" download>the same menu as a .cmd file</a>:</p>
         <div class="cmdline"><code id="oneliner">irm {{SITE_URL}}/install.ps1 | iex</code><button type="button" onclick="copyCmd(this)">Copy</button></div>
       </div>
       <div>
@@ -286,9 +286,10 @@
   <div class="wrap">
     <div class="head"><h2>Questions, answered.</h2></div>
     <div class="faq">
-      <details><summary>Is it safe?</summary><p>Everything is open source, so you (or a techy friend) can read exactly what each tool does. Nothing is pre-compiled: the tools are built from that source on your own PC. They don't connect to the internet, and they only use standard Windows features, like the accessibility tools screen readers rely on.</p></details>
+      <details><summary>Is it safe?</summary><p>Everything is open source, so you (or a techy friend) can read exactly what each tool does. Nothing is pre-compiled: the tools are built from that source on your own PC. The tools don't connect to the internet, and they only use standard Windows features, like the accessibility tools screen readers rely on. The tray app's update check downloads a short version list from this website, and the installer when there's something new. Nothing about you is sent.</p></details>
       <details><summary>Why does Windows warn me about the file?</summary><p>Windows shows that warning for any file that isn't signed with a paid certificate. This is a free hobby project, so it isn't. Choose <b>More info</b>, then <b>Run anyway</b>, or read the source first if you'd rather.</p></details>
-      <details><summary>How do I remove a tool?</summary><p>Run the installer again and press <b>U</b>, or open the tool's folder and double-click <code>Uninstall.cmd</code>. Settings it changed (like display scaling) go back to how they were.</p></details>
+      <details><summary>How do updates work?</summary><p>The toolkit's tray app checks this website every few hours. When a tool you have gets a new version, it installs it in the background the next time you've been away from your PC for ten minutes. Your settings stay, tools you turned off stay off, and controller buttons you changed are kept. Switch it off in the tray app under <b>Updates and about</b>. Every version is also on the <a href="{{REPO_URL}}/releases">releases page</a>.</p></details>
+      <details><summary>How do I remove a tool?</summary><p>Open <b>Settings &gt; Apps</b>, find <b>Windows Unlocked Toolkit</b> and choose <b>Uninstall</b> to pick what goes. You can also open the setup again and choose <b>Remove tools</b>, or double-click <code>Uninstall.cmd</code> in the tool's folder. Settings it changed (like display scaling) go back to how they were.</p></details>
       <details><summary>Will it slow my PC down?</summary><p>No. The tools are small background helpers that mostly sleep until you need them. You can see and pause them in Task Manager under Startup apps.</p></details>
       <details><summary>Which Windows versions work?</summary><p>They're made on Windows 11. They only need Windows PowerShell 5.1 and the C# compiler that come with Windows, so Windows 10 should work too. If it doesn't, please open an issue.</p></details>
       <details><summary>Can I suggest a tool or report a bug?</summary><p>Yes please! <a href="{{REPO_URL}}/issues">Open an issue on GitHub</a> with your idea or what went wrong. Each tool keeps a small log in its folder that helps track problems down.</p></details>
