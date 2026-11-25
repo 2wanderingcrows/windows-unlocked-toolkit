@@ -199,6 +199,12 @@ with the last few lines and it'll get looked at.
   [`site/assets/`](site/assets). Pictures marked as mockups are illustrations;
   swap in real screenshots at the same size and set `"mockup": false`.
 
+## Friends
+
+- **[The Haugen Project](https://thehaugenproject.com/)**: the world at a
+  glance, made at home with no ads or tracking. A history atlas, a live
+  California and Oregon outage board, quizzes, and browser games.
+
 ## License
 
 [MIT](LICENSE). Use it, change it, share it.
