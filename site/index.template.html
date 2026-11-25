@@ -61,6 +61,9 @@
   .hero .lede { max-width:640px; margin:22px auto 30px; font-size:1.22rem; color:var(--muted); }
   .cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
   .hero .fine { margin-top:14px; font-size:.86rem; color:var(--muted); }
+  .heads-up { margin:22px auto 0; max-width:720px; padding:14px 18px; border-radius:14px; background:var(--bg); border:1px solid var(--line, rgba(127,127,127,.25)); font-size:.92rem; text-align:left; }
+  .heads-up b { display:block; margin-bottom:4px; }
+  .signing { margin:14px auto 0; max-width:720px; font-size:.84rem; color:var(--muted); text-align:center; }
   .hero-shot { margin:52px auto 0; max-width:1040px; border-radius:28px; overflow:hidden; box-shadow:0 40px 80px -30px rgba(30,40,90,.5); position:relative; }
   .hero-shot img { display:block; width:100%; height:auto; }
 
@@ -211,7 +214,7 @@
       </a>
       <a class="btn ghost" href="#tools">See what's inside</a>
     </div>
-    <p class="fine">{{TOOL_COUNT}} tools · updates itself · no account, no ads, no tracking</p>
+    <p class="fine">{{TOOL_COUNT}} tools · updates itself · no account, no ads, no tracking · <a href="#heads-up">Windows warning?</a></p>
     <!-- MOCKUP: the hero image is concept art of the coming tray app. Replace site/assets/hero.svg with a real screenshot when it ships. -->
     <div class="hero-shot"><img src="assets/hero.svg" alt="A Windows desktop with the Windows Unlocked tray panel open, showing a section for each tool with toggles, a pointer speed slider and glow colors" width="1200" height="680"></div>
   </div>
@@ -274,6 +277,12 @@
       <div class="step"><h3>Open it</h3><p>If Windows says it "protected your PC", choose <b>More info</b>, then <b>Run anyway</b>.</p></div>
       <div class="step"><h3>Pick and install</h3><p>Switch on what you want and press <b>Install</b>.</p></div>
     </div>
+    <div class="heads-up" id="heads-up">
+      <b>Windows may warn you about the setup app. That's a false alarm.</b>
+      The app isn't digitally signed yet, and Windows is wary of new programs that aren't. A signed version is on its way through <a href="https://signpath.org/">SignPath Foundation</a>, which signs open-source projects for free, and it'll arrive in an update.
+      Until then: on the blue "Windows protected your PC" box, choose <b>More info</b>, then <b>Run anyway</b>. If your browser blocks the download, open your downloads list and choose <b>Keep</b>. Every line of code is <a href="{{REPO_URL}}">on GitHub</a> if you'd like to check first.
+    </div>
+    <p class="signing" id="code-signing">This project uses SignPath Foundation for code signing: free code signing provided by <a href="https://signpath.io/">SignPath.io</a>, certificate by <a href="https://signpath.org/">SignPath Foundation</a>. See the <a href="{{REPO_URL}}/blob/main/CODE_SIGNING_POLICY.md">code signing policy</a>.</p>
     <details class="more-ways"><summary>Other ways to install</summary>
     <div class="alt">
       <div>
@@ -326,7 +335,7 @@
 <footer>
   <div class="wrap">
     <p class="made">Made with help from Claude.</p>
-    <p>MIT licensed · Build {{BUILD}} · <a href="{{REPO_URL}}">Source on GitHub</a></p>
+    <p>MIT licensed · Build {{BUILD}} · <a href="{{REPO_URL}}">Source on GitHub</a> · <a href="{{REPO_URL}}/blob/main/CODE_SIGNING_POLICY.md">Code signing policy</a></p>
   </div>
 </footer>
 
