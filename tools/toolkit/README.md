@@ -13,7 +13,7 @@ One icon in the system tray for the whole toolkit.
     more than one), how big everything gets, pointer size,
     the switch shortcut, staying in Leanback mode when the controller falls asleep,
     pointer and scroll speed, what each controller button does (pick an action or
-    record your own key combo), holding LT for volume and window switching (with
+    record your own key combo, or open an app), holding LT for volume and window switching (with
     its own set of buttons), and which controllers count.
   - **Media Tab Jump:** the hover glow's colour, brightness and size, with a live preview,
     and (with more than one screen) whether the tab comes to the screen you're on.

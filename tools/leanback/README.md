@@ -143,7 +143,9 @@ In the toolkit app's Leanback Mode page, click any button's action to pick
 another one: clicks, Enter, Escape, media keys, **Last window (Alt+Tab)**,
 **All windows (Win+Tab)**, **Show desktop**, **Close tab** and more. Choose
 **Record a key combo** and press any keys, such as Ctrl+Shift+T or Alt+F4, to
-make the button press exactly that. Switch the Buttons card to **Holding LT** to
+make the button press exactly that. Choose **Open an app** to make a button
+open any program, for example Start opening Playnite or Steam Big Picture
+(apps it finds, such as Playnite, are listed right in the menu). Switch the Buttons card to **Holding LT** to
 set the second layer the same way.
 
 Button names follow the Xbox layout. On a PlayStation pad, A = Cross,
